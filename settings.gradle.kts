@@ -18,3 +18,7 @@ rootProject.name = "cucumber-kmp"
 
 include(":cucumber-kmp-annotations")
 include(":cucumber-kmp-core")
+include(":cucumber-kmp-ksp")
+
+// Verification only, never published: exercises the KSP processor end to end on every target.
+include(":cucumber-kmp-ksp-verification")

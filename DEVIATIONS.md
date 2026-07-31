@@ -18,10 +18,18 @@ replacement, and annotations live in our own package.
 ### Step discovery is compile-time, not reflective
 
 Cucumber scans the classpath and invokes steps reflectively. We generate a static registry with
-KSP. Observable consequence: **glue classes must have a no-arg constructor, or one whose
-parameters are themselves glue-registerable.** No DI container is supported. The scenario-scoping
-contract is preserved: fresh instances per scenario, shared across the steps within one.
-See ARCHITECTURE.md §8.
+KSP that contains explicit typed calls. The scenario-scoping contract is preserved — fresh glue
+instances per scenario, shared across the steps within one — but the mechanism imposes limits:
+
+- **Glue classes need a no-arg constructor.** Constructor injection of other glue classes, sketched
+  in ARCHITECTURE.md §8, is not implemented; a class with constructor parameters is a build error
+  that points at the `steps { }` DSL instead. No DI container is supported at all.
+- **Custom parameter types are DSL-only.** The processor validates `{placeholder}` types against
+  Cucumber's built-ins, so an unknown name is a build error. Annotated steps therefore cannot use a
+  custom parameter type yet; upstream's `@ParameterType` equivalent is not implemented.
+- **Annotated steps cannot live in `commonTest` alone.** They can be *written* there, but the
+  generated registry exists per target compilation, so reaching it from common code needs an
+  `expect`/`actual` shim. See ARCHITECTURE.md §4b.
 
 ### Ambiguous steps fail the build, not the test run
 

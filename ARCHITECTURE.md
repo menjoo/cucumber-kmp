@@ -176,9 +176,18 @@ The `invoke` lambda is the crux: an explicit, statically typed call replaces
 at compile time and a mismatch between `{int}` and a `String` parameter becomes a **build error
 with a source location**, not a runtime `CucumberException`.
 
-The processor must reject, at compile time: unsupported parameter types, a step expression that
-does not typecheck against the parameter list, duplicate expressions, `private` step functions,
-and step functions on classes without a usable constructor.
+The processor rejects, at compile time and with a source location: an expression that does not
+parse, a placeholder count that disagrees with the parameter count, a placeholder whose type does
+not match the declared parameter, an undefined parameter type, duplicate expressions, `private` or
+`abstract` step functions, step functions on an abstract or inner class or one without a no-arg
+constructor, hooks that take parameters, and malformed hook tag expressions. It validates
+expressions using the very parser it generates calls to — the processor depends on the JVM artifact
+of `cucumber-kmp-core`, the same trick the Gradle plugin uses for `.feature` files.
+
+**Generation is per target compilation, not over common metadata.** KSP's only metadata entry point
+is `kspCommonMainMetadata`, so nothing can be generated into `commonTest`. Each target's test
+compilation processes the shared `commonTest` sources and emits its own copy of the registry, which
+means common code needs a one-line `expect`/`actual` shim to reach it. See §13.1.
 
 ### 4c. Runtime engine (`cucumber-kmp-core`, `commonMain`)
 
@@ -404,7 +413,7 @@ source locations and result data those formats need, so this is additive.
 | 1b | Cucumber Expressions | ✅ all 120 upstream fixtures pass on every Tier A target, exception messages byte-identical |
 | 1c | Tag expressions | ✅ all 64 upstream fixtures pass on every Tier A target |
 | 1d | Pickle compiler, step matcher, runner, `steps { }` DSL | ✅ all 50 upstream pickle traces match; a `.feature` file executes end to end on every Tier A target |
-| 2 | KSP processor generating `GeneratedStepRegistry` | Annotated steps in `commonTest` are found; type mismatches are build errors |
+| 2 | KSP processor generating `GeneratedStepRegistry` | ✅ annotated steps run on every Tier A target; ten kinds of mistake are build errors with source locations |
 | 3 | Gradle plugin generating test classes from `.feature` files | `examples/calculator` is green on `jvmTest`, `testDebugUnitTest`, `macosArm64Test`, `iosSimulatorArm64Test`, `jsTest`, `wasmJsTest` |
 | 4 | Gherkin completeness (outlines, tables, doc strings, tags, rules, i18n) | The official "good" corpus parses; the "bad" corpus fails with the expected line numbers |
 | 5 | **On-device verification** — Android instrumented tests, then the iOS XCTest host app | `connectedDebugAndroidTest` green on a device/AVD; `xcodebuild test` green on the iPhone 13; regex conformance confirmed on ART |
@@ -417,11 +426,27 @@ fixtures mean correctness is measurable from day one rather than asserted.
 
 ## 13. Key risks
 
-1. **KSP over `commonTest`.** KSP's multiplatform story is per-compilation; processing common
-   code goes through `kspCommonMainKotlinMetadata`-style tasks and generated directories must be
-   wired into the right source sets by hand. This is the single most likely place to lose days.
-   *Mitigation:* the engine accepts a hand-written `StepRegistry`, and we additionally ship a
-   **pure-Kotlin registration DSL**:
+1. ~~**KSP over `commonTest`.**~~ **Resolved in Phase 2, and the prediction was half right.** KSP
+   does work per-compilation, and the real constraint turned out sharper than expected: KSP's only
+   metadata entry point is `kspCommonMainMetadata`, so **there is no way to generate into
+   `commonTest` at all**. Per-target generation works cleanly — `kspJvmTest`,
+   `kspIosSimulatorArm64Test`, `kspAndroidHostTest` and friends all process `commonTest` sources
+   and emit into their own compilation — but common code cannot *see* the result, so a one-line
+   `expect`/`actual` shim per target bridges it. Phase 3's Gradle plugin should emit that shim so
+   users never write it. See §4b.
+
+   Two smaller traps cost real time and are worth not rediscovering:
+   - Applying KSP with `alias(libs.plugins.ksp)` in a module drags in its own Kotlin Gradle plugin;
+     two Kotlin plugins on separate classloaders both try to register the root `kotlinNodeJs`
+     extension and the build fails. KSP therefore lives on **build-logic's** classpath and is
+     applied through the `cucumberkmp.ksp` convention plugin.
+   - `includeBuild("build-logic")` exposes build-logic's own precompiled script plugins, not the
+     third-party plugins on its implementation classpath — hence the thin wrapper plugin rather
+     than applying `com.google.devtools.ksp` directly in a module.
+
+   The mitigation below stays regardless, because it is a better mechanism and not merely a hedge:
+   the engine accepts a hand-written `StepRegistry`, and we ship a **pure-Kotlin registration
+   DSL**:
 
    ```kotlin
    val eggSteps = steps {
