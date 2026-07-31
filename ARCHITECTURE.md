@@ -393,7 +393,8 @@ source locations and result data those formats need, so this is additive.
 | Phase | Deliverable | Done when |
 |---|---|---|
 | 0 | Gradle skeleton, version catalog, convention plugins (incl. AGP) | ✅ `./gradlew build` green: 6 Tier A targets each running the same tests, `iosArm64` link-checked |
-| 0b | **CI/CD on GitHub Actions** | PRs gated on the Tier A matrix + `linkDebugTestIosArm64`; Gradle and Konan caches warm; browser tests run via `-Pcucumberkmp.browserTests`; snapshots publish from `main` and releases on tag |
+| 0b | **CI on GitHub Actions** | ✅ PRs gated on the Tier A matrix + `linkDebugTestIosArm64`, Gradle and Konan cached, browser tests in their own job, plus a scheduled upstream-drift check |
+| 0c | **CD on GitHub Actions** | Blocked on choosing a licence — see §15 |
 | 1a | AST + Gherkin parser + upstream parser corpus | ✅ all 50 parseable and 12 failing fixtures match upstream exactly, on every Tier A target |
 | 1b | Cucumber Expressions | ✅ all 120 upstream fixtures pass on every Tier A target, exception messages byte-identical |
 | 1c | Tag expressions | ✅ all 64 upstream fixtures pass on every Tier A target |
@@ -487,7 +488,33 @@ fixtures mean correctness is measurable from day one rather than asserted.
 - `local.properties` is git-ignored and holds `sdk.dir`.
 - Track which upstream Cucumber version we are ported against, in `DEVIATIONS.md`.
 
-## 15. Read before writing Phase 1
+## 15. Open decisions
+
+### Licence — blocks publishing
+
+The repository has no `LICENSE` file, and a Maven POM cannot be published without a licence
+declaration. This is not a detail to default quietly: the project ports **MIT-licensed** code and
+test data from `cucumber-jvm`, `gherkin`, `cucumber-expressions` and `tag-expressions`, and the
+generated corpora embed upstream's fixtures verbatim. Matching upstream's MIT licence is the
+straightforward and compatible choice, but it is the repository owner's call to make explicitly
+rather than one to infer.
+
+Also worth deciding at the same time: whether the vendored upstream fixtures need an attribution
+notice, given they are copied rather than merely referenced.
+
+### Publishing destination
+
+Maven Central needs a verified `io.github.menjoo` namespace on Sonatype plus signing keys and
+credentials as repository secrets. GitHub Packages needs neither and works immediately with
+`GITHUB_TOKEN`, which makes it a reasonable interim target. Central remains the Phase 7 goal.
+
+### Group and package name
+
+`io.github.menjoo.cucumberkmp` was chosen because `io.github.<user>` is the namespace Sonatype
+grants without a domain. Changing it later is a find-and-replace, but it gets more disruptive once
+anything is published.
+
+## 16. Read before writing Phase 1
 
 - The Gherkin specification, and `gherkin-languages.json` plus the good/bad parser corpus.
 - The Cucumber Expressions specification and its shared test suite — the grammar is small and

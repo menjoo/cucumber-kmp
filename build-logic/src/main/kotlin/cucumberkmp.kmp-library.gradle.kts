@@ -21,9 +21,15 @@ plugins {
 group = "io.github.menjoo.cucumberkmp"
 version = "0.1.0-SNAPSHOT"
 
-// Browser tests need Chrome resolvable by Karma. Off by default to keep `check` fast and
-// deterministic locally; CI opts in with -Pcucumberkmp.browserTests.
+// Browser tests need Chrome resolvable by Karma. Off by default to keep `check` fast locally;
+// CI opts in with -Pcucumberkmp.browserTests.
+//
+// Skipped via onlyIf rather than `enabled = false` on purpose: whether these tasks are *enabled*
+// changes which npm packages Kotlin resolves, so toggling the flag would rewrite
+// kotlin-js-store/yarn.lock and make every build fail on a lock mismatch in one mode or the other.
+// Keeping them enabled but unexecuted holds the dependency set — and the lock — constant.
 val browserTestsEnabled: Boolean = providers.gradleProperty("cucumberkmp.browserTests").isPresent
+val BROWSER_TESTS_REASON = "browser tests run only with -Pcucumberkmp.browserTests"
 
 // Type-safe `libs.*` accessors are not generated for precompiled script plugins, so the catalog
 // is read through its API instead. Versions still live only in gradle/libs.versions.toml.
@@ -55,7 +61,7 @@ kotlin {
     js {
         nodejs()
         browser {
-            testTask { enabled = browserTestsEnabled }
+            testTask { onlyIf(BROWSER_TESTS_REASON) { browserTestsEnabled } }
         }
     }
 
@@ -63,7 +69,7 @@ kotlin {
     wasmJs {
         nodejs()
         browser {
-            testTask { enabled = browserTestsEnabled }
+            testTask { onlyIf(BROWSER_TESTS_REASON) { browserTestsEnabled } }
         }
     }
 

@@ -1,0 +1,63 @@
+name: Upstream drift
+
+# This whole project is a port pinned to upstream Cucumber's own test data (ARCHITECTURE.md §2).
+# That pinning is only as good as our knowledge of when upstream changes, so this regenerates every
+# corpus from upstream's main branch and reports any difference.
+#
+# Deliberately NOT part of CI: upstream changing is news, not a broken pull request. It runs on a
+# schedule and on demand, and a failure here means "go look", not "someone broke something".
+
+on:
+  schedule:
+    # Mondays, 06:00 UTC.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Regenerate corpora and diff
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
+      - name: Regenerate the Gherkin dialect table
+        run: python3 tools/update-gherkin-dialects.py --download
+
+      - name: Regenerate the Gherkin parser and pickle corpus
+        run: python3 tools/update-gherkin-corpus.py
+
+      - name: Regenerate the Cucumber Expressions corpus
+        run: python3 tools/update-expression-corpus.py
+
+      - name: Regenerate the tag expression corpus
+        run: python3 tools/update-tag-expression-corpus.py
+
+      - name: Report drift
+        id: drift
+        run: |
+          if git diff --quiet; then
+            echo "No drift: every corpus matches upstream main."
+            exit 0
+          fi
+          echo "::warning::Upstream Cucumber test data has changed. Review the diff artifact."
+          git --no-pager diff --stat
+          git --no-pager diff > upstream-drift.patch
+          exit 1
+
+      - name: Upload the diff
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-drift-patch
+          path: upstream-drift.patch
+          retention-days: 30
+          if-no-files-found: ignore

@@ -1,8 +1,12 @@
 .gradle/
 build/
 .kotlin/
-kotlin-js-store/
 local.properties
+
+# kotlin-js-store/yarn.lock IS committed: it pins the npm dependency tree that JS and Wasm
+# tests resolve, so leaving it out would make those targets non-reproducible in CI.
+kotlin-js-store/*
+!kotlin-js-store/yarn.lock
 .idea/
 *.iml
 .DS_Store
