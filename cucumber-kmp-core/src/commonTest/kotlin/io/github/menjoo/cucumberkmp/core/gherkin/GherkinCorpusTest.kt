@@ -52,6 +52,27 @@ class GherkinCorpusTest {
     }
 
     @Test
+    fun compiledPicklesMatchUpstream() {
+        val failures = mutableListOf<String>()
+
+        for (entry in GHERKIN_GOOD_CORPUS) {
+            val outcome = GherkinParser.tryParse(entry.name, entry.source)
+            if (outcome.errors.isNotEmpty()) continue // covered by the AST test
+            val actual = PickleCompiler.compile(outcome.document).toTrace()
+            if (actual != entry.expectedPickles) {
+                failures += "${entry.name}:\n${diff(entry.expectedPickles, actual)}"
+            }
+        }
+
+        if (failures.isNotEmpty()) {
+            fail(
+                "${failures.size}/${GHERKIN_GOOD_CORPUS.size} features compile differently:\n\n" +
+                    failures.joinToString("\n\n"),
+            )
+        }
+    }
+
+    @Test
     fun failingFeaturesMatchUpstreamErrors() {
         val failures = mutableListOf<String>()
 

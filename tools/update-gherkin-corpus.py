@@ -187,6 +187,49 @@ class TraceBuilder:
         return "\n".join(self.lines)
 
 
+KEYWORD_TYPES_PICKLE = {
+    "Context": "CONTEXT",
+    "Action": "ACTION",
+    "Outcome": "OUTCOME",
+    "Unknown": "UNKNOWN",
+}
+
+
+def pickle_trace(pickles: list[dict]) -> str:
+    """Canonical trace of the compiled test cases.
+
+    Synthetic `id`/`astNodeIds` are omitted: they are upstream bookkeeping, not semantics.
+    """
+    lines: list[str] = []
+    for p in pickles:
+        loc = p.get("location", {})
+        lines.append(
+            f"pickle {loc.get('line', 0)}:{loc.get('column', 0)} "
+            f"language={p['language']} name={escape(p['name'])}"
+        )
+        for tag in p.get("tags", []):
+            lines.append(f"  tag {escape(tag['name'])}")
+        for step in p.get("steps", []):
+            # Upstream pickle steps carry no location -- they point back at AST nodes by
+            # synthetic id. Ours carry a real SourceLocation, so it is left out of the
+            # comparison rather than dropped from the model. See DEVIATIONS.md.
+            kind = KEYWORD_TYPES_PICKLE.get(step.get("type", "Unknown"), "UNKNOWN")
+            lines.append(f"  step type={kind} text={escape(step['text'])}")
+            argument = step.get("argument") or {}
+            if "docString" in argument:
+                doc = argument["docString"]
+                media = escape(doc["mediaType"]) if doc.get("mediaType") is not None else "-"
+                lines.append(
+                    f"    docstring mediaType={media} content={escape(doc['content'])}"
+                )
+            if "dataTable" in argument:
+                lines.append("    datatable")
+                for row in argument["dataTable"].get("rows", []):
+                    cells = " | ".join(escape(c["value"]) for c in row.get("cells", []))
+                    lines.append(f"      row {cells}")
+    return "\n".join(lines)
+
+
 # -------------------------------------------------------------------- kotlin output
 
 
@@ -215,11 +258,13 @@ def render(good: list[tuple[str, str, str]], bad: list[tuple[str, str, list[str]
     out.append("")
     out.append("package io.github.menjoo.cucumberkmp.core.gherkin")
     out.append("")
-    out.append("/** A feature upstream expects to parse, with its expected canonical trace. */")
+    out.append("/** A feature upstream expects to parse, with its expected canonical traces. */")
     out.append("internal data class CorpusFeature(")
     out.append("    val name: String,")
     out.append("    val source: String,")
     out.append("    val expectedTrace: String,")
+    out.append("    /** The compiled test cases upstream produces from this feature. */")
+    out.append("    val expectedPickles: String,")
     out.append(")")
     out.append("")
     out.append("/** A feature upstream expects to fail, with the exact errors it reports. */")
@@ -238,11 +283,12 @@ def render(good: list[tuple[str, str, str]], bad: list[tuple[str, str, list[str]
     out.append("")
     for index, chunk in enumerate(good_chunks):
         out.append(f"private fun goodCorpusChunk{index}(): List<CorpusFeature> = listOf(")
-        for name, source, trace in chunk:
+        for name, source, trace, pickles in chunk:
             out.append("    CorpusFeature(")
             out.append(f"        name = {kotlin_string(name)},")
             out.append(f"        source = {kotlin_string(source)},")
             out.append(f"        expectedTrace = {kotlin_string(trace)},")
+            out.append(f"        expectedPickles = {kotlin_string(pickles)},")
             out.append("    ),")
         out.append(")")
         out.append("")
@@ -290,17 +336,28 @@ def main() -> int:
             text=True,
         ).stdout.strip()
 
-        good: list[tuple[str, str, str]] = []
+        good: list[tuple[str, str, str, str]] = []
         for feature_path in sorted((checkout / "testdata" / "good").glob("*.feature")):
             ast_path = feature_path.with_suffix(".feature.ast.ndjson")
             if not ast_path.exists():
                 continue
             document = json.loads(ast_path.read_text(encoding="utf-8"))["gherkinDocument"]
+
+            pickles_path = feature_path.with_suffix(".feature.pickles.ndjson")
+            pickles = []
+            if pickles_path.exists():
+                pickles = [
+                    json.loads(line)["pickle"]
+                    for line in pickles_path.read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+
             good.append(
                 (
                     feature_path.name,
                     feature_path.read_text(encoding="utf-8"),
                     TraceBuilder().document(document),
+                    pickle_trace(pickles),
                 )
             )
 

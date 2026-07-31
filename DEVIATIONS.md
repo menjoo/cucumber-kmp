@@ -103,6 +103,35 @@ A capture group whose source is exactly one of a registered type's regexps adopt
 source-based, but we do not attempt the parameter-type preference resolution it performs for
 ambiguous cases beyond honouring `preferForRegexpMatch`.
 
+## Runner
+
+Scenario compilation is pinned by upstream's `.pickles.ndjson` fixtures: all 50 features compile to
+matching test cases. Step and hook ordering follow cucumber-jvm — `Before` in registration order,
+`After` in reverse and always, remaining steps skipped after a failure.
+
+### Pickle steps carry a real location
+
+Upstream's pickle steps have no location; they point back at AST nodes by synthetic id. Ours carry a
+[SourceLocation], because a runtime failure needs to name a line and those ids cannot be resolved
+once the AST is gone. The field is excluded from corpus comparison rather than dropped from the
+model.
+
+### Per-scenario isolation comes from re-running the DSL block
+
+`steps { }` returns a factory, not a registry, and the runner calls it once per scenario. A `var`
+declared inside the block is therefore fresh for every scenario and closures over it cannot leak.
+This preserves cucumber-jvm's observable contract — fresh state per scenario, shared within one —
+with no DI container and no reflection.
+
+Cost: expressions are recompiled per scenario. Acceptable now; if it shows up in profiling, cache
+compiled expressions by source string.
+
+### A skipped scenario is not a passing scenario
+
+`ScenarioResult.isPassed` is false for a scenario excluded by a runtime tag filter. Generated test
+functions must decide how to surface that, and cannot report a real platform-level skip — see the
+tag-filtering entry above.
+
 ## Portability hazards
 
 Not deviations from Cucumber — cross-target traps this port has hit, recorded so they are not

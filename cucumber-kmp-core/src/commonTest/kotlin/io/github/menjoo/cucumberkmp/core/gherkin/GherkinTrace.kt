@@ -134,6 +134,35 @@ private fun StringBuilder.line(depth: Int, text: String) {
     append('\n')
 }
 
+/**
+ * Canonical trace of compiled pickles, matching what `tools/update-gherkin-corpus.py` emits.
+ *
+ * Upstream's synthetic `id`/`astNodeIds` are omitted: they are its own bookkeeping, not semantics
+ * our compiler needs to reproduce.
+ */
+internal fun List<Pickle>.toTrace(): String = buildString {
+    for (pickle in this@toTrace) {
+        line(0, "pickle ${pickle.location.at()} language=${pickle.language} name=${pickle.name.esc()}")
+        for (tag in pickle.tags) {
+            line(1, "tag ${tag.esc()}")
+        }
+        for (step in pickle.steps) {
+            // Step locations are omitted: upstream's pickle steps have none, referring back to
+            // AST nodes by synthetic id instead.
+            line(1, "step type=${step.type} text=${step.text.esc()}")
+            step.docString?.let {
+                line(2, "docstring mediaType=${it.mediaType?.esc() ?: "-"} content=${it.content.esc()}")
+            }
+            step.dataTable?.let { table ->
+                line(2, "datatable")
+                for (row in table.rows) {
+                    line(3, "row " + row.cells.joinToString(" | ") { it.value.esc() })
+                }
+            }
+        }
+    }
+}.trimEnd('\n')
+
 private fun SourceLocation.at(): String = "$line:$column"
 
 private fun String.esc(): String =
