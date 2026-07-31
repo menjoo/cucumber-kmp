@@ -66,6 +66,59 @@ re-derived from first principles. Pinned by `unexpected_eof.feature` and
 places `#Language` before `#TagLine`, so this should agree, but no fixture covers it, so it
 remains our choice rather than a verified behaviour.
 
+## Cucumber Expressions
+
+Pinned by upstream's own test data: all 120 fixtures across the tokenizer, parser, regex-generation
+and matching families pass on every target, with byte-identical exception messages including the
+caret line. See `ExpressionCorpusTest`.
+
+### No capture-group transformers
+
+Upstream's `TreeRegexp`/`GroupBuilder` build a tree of capture groups so a `CaptureGroupTransformer`
+can receive a parameter's *sub*-groups. We track only each parameter's own group index, so a
+transformer receives the **whole text the parameter matched** and must parse it itself. The built-in
+`{string}` type does exactly that: it strips the surrounding quotes from the matched text rather
+than reading inner groups.
+
+Nested groups inside a custom parameter type's regexp are supported and correctly skipped when
+computing indices — they simply are not exposed to the transformer.
+
+### `{biginteger}` and `{bigdecimal}` yield `String`
+
+Kotlin's common standard library has no arbitrary-precision numeric types. Narrowing to `Long` or
+`Double` would silently lose the precision the author asked for, so these types hand back the raw
+matched text (with group separators removed, for `bigdecimal`). Revisit if a multiplatform
+big-number library becomes a dependency worth taking.
+
+### `{float}`, `{double}` and `{bigdecimal}` use English separators
+
+Upstream derives the number regex from the ambient locale. A compile-time framework cannot: the
+generated regex is baked into generated code at build time, so it must not depend on the machine
+that ran the build. `.` is the decimal separator and `,` a group separator, always.
+
+### Regular expressions infer types by exact regexp match only
+
+A capture group whose source is exactly one of a registered type's regexps adopts that type, so
+`(\d+)` yields an `Int`. Anything else yields the matched text. Upstream's matching is likewise
+source-based, but we do not attempt the parameter-type preference resolution it performs for
+ambiguous cases beyond honouring `preferForRegexpMatch`.
+
+## Portability hazards
+
+Not deviations from Cucumber — cross-target traps this port has hit, recorded so they are not
+rediscovered.
+
+### `Float.toString()` and `Double.toString()` are not portable
+
+Kotlin/JS has one number type, so `1500.0` prints as `1500` there and `1500.0` on the JVM and
+Native. Anything that renders a captured value into a message — a failure report, a generated
+snippet — must normalise rather than rely on `toString`.
+
+### Runtime type checks cannot distinguish numeric types on JS
+
+`1500.0 is Int` is **true** on Kotlin/JS. Code that branches on a captured value's runtime type
+will behave differently there; branch on the declared parameter type instead.
+
 ## Unverified assumptions
 
 Judgement calls no upstream fixture exercises. Listed so they are checked rather than forgotten.

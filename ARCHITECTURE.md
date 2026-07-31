@@ -395,7 +395,8 @@ source locations and result data those formats need, so this is additive.
 | 0 | Gradle skeleton, version catalog, convention plugins (incl. AGP) | ✅ `./gradlew build` green: 6 Tier A targets each running the same tests, `iosArm64` link-checked |
 | 0b | **CI/CD on GitHub Actions** | PRs gated on the Tier A matrix + `linkDebugTestIosArm64`; Gradle and Konan caches warm; browser tests run via `-Pcucumberkmp.browserTests`; snapshots publish from `main` and releases on tag |
 | 1a | AST + Gherkin parser + upstream parser corpus | ✅ all 50 parseable and 12 failing fixtures match upstream exactly, on every Tier A target |
-| 1b | Cucumber Expressions + tag expressions + matcher + runner, in `commonMain` | Upstream expression and tag-expression suites pass on every Tier A target, driven by a hand-written `StepRegistry` |
+| 1b | Cucumber Expressions | ✅ all 120 upstream fixtures pass on every Tier A target, exception messages byte-identical |
+| 1c | Tag expressions + matcher + runner, in `commonMain` | Upstream tag-expression suite passes on every Tier A target, driven by a hand-written `StepRegistry` |
 | 2 | KSP processor generating `GeneratedStepRegistry` | Annotated steps in `commonTest` are found; type mismatches are build errors |
 | 3 | Gradle plugin generating test classes from `.feature` files | `examples/calculator` is green on `jvmTest`, `testDebugUnitTest`, `macosArm64Test`, `iosSimulatorArm64Test`, `jsTest`, `wasmJsTest` |
 | 4 | Gherkin completeness (outlines, tables, doc strings, tags, rules, i18n) | The official "good" corpus parses; the "bad" corpus fails with the expected line numbers |
