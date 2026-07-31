@@ -1,0 +1,11 @@
+.gradle/
+build/
+.kotlin/
+kotlin-js-store/
+local.properties
+.idea/
+*.iml
+.DS_Store
+
+# Heap dumps, e.g. from a Kotlin/Native compiler OOM
+*.hprof
