@@ -1,0 +1,29 @@
+cucumber-kmp
+Copyright (c) 2026 Menno Morsink
+
+This product is a Kotlin Multiplatform port of Cucumber and is licensed under the MIT
+License, the same licence as the upstream projects it derives from.
+
+## Derived and embedded upstream material
+
+Behaviour, algorithms and error messages in this project are ported from the Cucumber
+projects listed below. In addition, their published test data is **embedded verbatim** in
+this repository as generated Kotlin source, so that this port can prove conformance:
+
+| Upstream project | What is derived or embedded | Where |
+|---|---|---|
+| https://github.com/cucumber/gherkin | The `gherkin-languages.json` keyword table for 80 languages, and the good/bad parser corpus with its expected ASTs and pickles | `cucumber-kmp-core/src/commonMain/.../GherkinDialects.kt`, `cucumber-kmp-core/src/commonTest/.../GherkinCorpus.kt`, `tools/gherkin-languages.json` |
+| https://github.com/cucumber/cucumber-expressions | Tokenizer, parser and regex-generation behaviour, exception message text, and the tokenizer/parser/transformation/matching test data | `cucumber-kmp-core/src/commonMain/.../expression/`, `cucumber-kmp-core/src/commonTest/.../ExpressionCorpus.kt` |
+| https://github.com/cucumber/tag-expressions | The shunting-yard parser behaviour, error message text, and the parsing/evaluation/error test data | `cucumber-kmp-core/src/commonMain/.../tag/`, `cucumber-kmp-core/src/commonTest/.../TagExpressionCorpus.kt` |
+| https://github.com/cucumber/cucumber-jvm | Step and hook execution ordering, and step-definition semantics | `cucumber-kmp-core/src/commonMain/.../runner/` |
+
+Each of those projects is:
+
+    Copyright (c) Cucumber Ltd and contributors
+    Licensed under the MIT License
+
+The files under `tools/` regenerate the embedded material from upstream; the generated
+files carry a header naming the upstream commit they came from.
+
+cucumber-kmp is an independent port. It is not published, endorsed or supported by
+Cucumber Ltd, and it is not binary- or source-compatible with the `io.cucumber` artifacts.

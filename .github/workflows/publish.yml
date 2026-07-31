@@ -1,0 +1,83 @@
+name: Publish
+
+# Snapshots on every push to main, releases on a v* tag.
+#
+# Destination is GitHub Packages, which needs nothing beyond the automatic GITHUB_TOKEN. Maven
+# Central additionally requires a verified io.github.menjoo namespace on Sonatype plus signing
+# keys; see ARCHITECTURE.md §15 for what to add when that is in place.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  # Never let two publishes race for the same coordinates.
+  group: publish
+  cancel-in-progress: false
+
+env:
+  GRADLE_OPTS: -Dorg.gradle.daemon=false
+
+jobs:
+  publish:
+    name: Publish to GitHub Packages
+    runs-on: macos-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Cache Konan
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-
+
+      # A tag publishes that exact version; anything else publishes the snapshot the build
+      # declares by default.
+      - name: Resolve the version to publish
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            version="${GITHUB_REF#refs/tags/v}"
+            echo "Publishing release $version"
+            echo "args=-Pcucumberkmp.version=$version" >> "$GITHUB_OUTPUT"
+          else
+            echo "Publishing snapshot"
+            echo "args=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Publishing an untested artifact is worse than not publishing, so the gate runs here too
+      # rather than trusting that CI already passed for this commit.
+      - name: Verify before publishing
+        run: ./gradlew build --stacktrace
+
+      - name: Publish
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: set these repository secrets to publish signed artifacts. Signing is
+          # required by Maven Central and ignored by GitHub Packages.
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: >-
+          ./gradlew publishAllPublicationsToGitHubPackagesRepository
+          ${{ steps.version.outputs.args }}
+          --stacktrace

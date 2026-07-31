@@ -1,8 +1,13 @@
 # cucumber-kmp — Architecture
 
-> Status: **design draft**. No code exists yet. This document is the brief: it defines what we
-> build, why, and in what order. It is written to be read both by humans and by a coding agent
-> starting from an empty repository.
+> This document is the brief: what we build, why, and in what order. It stays authoritative as the
+> code lands — the roadmap in §12 marks what is done, and anything that turned out differently in
+> practice is corrected here rather than left as an aspiration.
+>
+> Status: **Phase 0 and Phase 1 complete.** The engine parses, compiles, matches and runs a
+> `.feature` file end to end on all six Tier A targets, pinned against upstream Cucumber's own test
+> data. Next: KSP annotations (Phase 2) and the Gradle plugin that generates one test per scenario
+> (Phase 3) — the point at which a `.feature` file dropped in the repository simply runs.
 
 ## 1. Goal
 
@@ -394,7 +399,7 @@ source locations and result data those formats need, so this is additive.
 |---|---|---|
 | 0 | Gradle skeleton, version catalog, convention plugins (incl. AGP) | ✅ `./gradlew build` green: 6 Tier A targets each running the same tests, `iosArm64` link-checked |
 | 0b | **CI on GitHub Actions** | ✅ PRs gated on the Tier A matrix + `linkDebugTestIosArm64`, Gradle and Konan cached, browser tests in their own job, plus a scheduled upstream-drift check |
-| 0c | **CD on GitHub Actions** | Blocked on choosing a licence — see §15 |
+| 0c | **CD on GitHub Actions** | ✅ snapshots from `main`, releases on a `v*` tag, to GitHub Packages; Maven Central needs the Sonatype setup in §15 |
 | 1a | AST + Gherkin parser + upstream parser corpus | ✅ all 50 parseable and 12 failing fixtures match upstream exactly, on every Tier A target |
 | 1b | Cucumber Expressions | ✅ all 120 upstream fixtures pass on every Tier A target, exception messages byte-identical |
 | 1c | Tag expressions | ✅ all 64 upstream fixtures pass on every Tier A target |
@@ -488,31 +493,42 @@ fixtures mean correctness is measurable from day one rather than asserted.
 - `local.properties` is git-ignored and holds `sdk.dir`.
 - Track which upstream Cucumber version we are ported against, in `DEVIATIONS.md`.
 
-## 15. Open decisions
+## 15. Decisions and remaining setup
 
-### Licence — blocks publishing
+### Licence: MIT ✅
 
-The repository has no `LICENSE` file, and a Maven POM cannot be published without a licence
-declaration. This is not a detail to default quietly: the project ports **MIT-licensed** code and
-test data from `cucumber-jvm`, `gherkin`, `cucumber-expressions` and `tag-expressions`, and the
-generated corpora embed upstream's fixtures verbatim. Matching upstream's MIT licence is the
-straightforward and compatible choice, but it is the repository owner's call to make explicitly
-rather than one to infer.
+Matching the upstream Cucumber projects this is ported from. `LICENSE` holds the MIT text and
+`NOTICE` records what is derived and what is embedded verbatim — the vendored fixtures are copied,
+not merely referenced, so they are attributed per project with a pointer to the generated file.
+Every generated file also names the upstream commit it came from.
 
-Also worth deciding at the same time: whether the vendored upstream fixtures need an attribution
-notice, given they are copied rather than merely referenced.
+### Publishing: GitHub Packages now, Maven Central later
 
-### Publishing destination
+`publish.yml` pushes snapshots from `main` and releases from a `v*` tag to GitHub Packages, which
+needs nothing beyond the automatic `GITHUB_TOKEN`. Artifacts carry a Central-compliant POM already:
+name, description, url, MIT licence, developer and SCM, plus sources and (empty) javadoc jars.
 
-Maven Central needs a verified `io.github.menjoo` namespace on Sonatype plus signing keys and
-credentials as repository secrets. GitHub Packages needs neither and works immediately with
-`GITHUB_TOKEN`, which makes it a reasonable interim target. Central remains the Phase 7 goal.
+**To add Maven Central**, three things are needed that cannot be done from this repository:
+
+1. A verified `io.github.menjoo` namespace on Sonatype — proven by creating a repository whose name
+   is the code Sonatype gives you.
+2. A GPG key, exported armoured, as the `SIGNING_KEY` secret with its passphrase as
+   `SIGNING_PASSWORD`. Signing is already wired and activates when `SIGNING_KEY` is present;
+   GitHub Packages ignores signatures, Central requires them.
+3. A Central repository added to `publishing.repositories` in the convention plugin, with its
+   credentials as secrets.
 
 ### Group and package name
 
-`io.github.menjoo.cucumberkmp` was chosen because `io.github.<user>` is the namespace Sonatype
-grants without a domain. Changing it later is a find-and-replace, but it gets more disruptive once
-anything is published.
+`io.github.menjoo.cucumberkmp`, because `io.github.<user>` is the namespace Sonatype grants without
+a domain. Changing it is a find-and-replace, but gets disruptive once anything is published — so
+settle it before the first release rather than after.
+
+### Versioning
+
+The build declares `0.1.0-SNAPSHOT`. A release overrides it with `-Pcucumberkmp.version=<x.y.z>`,
+which `publish.yml` derives from the tag. Nothing reads the version from git, so a tag is the single
+source of truth for what a release is called.
 
 ## 16. Read before writing Phase 1
 
