@@ -25,9 +25,19 @@ class SourceLocationTest {
     }
 
     @Test
-    fun rejectsZeroBasedColumn() {
+    fun allowsColumnZeroForEndOfInput() {
+        // Gherkin reports end-of-file errors at column 0, one line past the last line.
+        assertEquals(
+            "a.feature:5:0",
+            SourceLocation("a.feature", line = 5, column = SourceLocation.END_OF_INPUT_COLUMN)
+                .toString(),
+        )
+    }
+
+    @Test
+    fun rejectsNegativeColumn() {
         assertFailsWith<IllegalArgumentException> {
-            SourceLocation("a.feature", line = 1, column = 0)
+            SourceLocation("a.feature", line = 1, column = -1)
         }
     }
 }

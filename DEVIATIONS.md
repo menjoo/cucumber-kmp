@@ -38,29 +38,42 @@ as skipped properly. See ARCHITECTURE.md §9.
 
 ## Parser
 
-### Error message wording is close, not identical
+The parser is pinned by upstream's own test data: all 50 parseable fixtures produce a matching AST
+and all 12 failing fixtures produce byte-identical error messages, on every target. See
+`GherkinCorpusTest`. Error messages, positions and `expected: #Token, …` lists are therefore
+**exact**, not approximate.
 
-We emit upstream's shape — `(line:column): expected: #EOF, #TagLine, …, got 'text'` — because
-that is what users search for, but the wording is not guaranteed identical token-for-token. To be
-verified against upstream's "bad" corpus in Phase 4; treat any mismatch found there as a bug in
-this table, not a licence to diverge.
+### Markdown-with-Gherkin is not supported
+
+Upstream's test data includes `.feature.md` fixtures — feature text embedded in a Markdown
+document. We skip them and support only plain `.feature` files.
+
+### The end-of-file token list is copied, not derived
+
+Upstream reports a file ending in dangling tags as
+`unexpected end of file, expected: #TagLine, #RuleLine, #Comment, #Empty`, and prints that same
+list whether the tags sit at feature level or inside a scenario outline — even where a
+`#ScenarioLine` or `#ExamplesLine` would plainly be valid. Our list is reproduced from its
+observed output rather than derived from a state machine.
+
+Consequence: **if upstream changes that list, ours must be changed to match** — it cannot be
+re-derived from first principles. Pinned by `unexpected_eof.feature` and
+`unexpected_end_of_file.feature`.
 
 ### The language header must precede tags
 
 `# language: xx` appearing after a feature's tags is reported as an error. Upstream's grammar
-places `#Language` before `#TagLine`, so this should agree, but it is an explicit choice here
-rather than a consequence of a generated state machine.
+places `#Language` before `#TagLine`, so this should agree, but no fixture covers it, so it
+remains our choice rather than a verified behaviour.
 
 ## Unverified assumptions
 
-Not deviations — places where we made a judgement call that the upstream corpus will settle in
-Phase 4 (task #6). Listed so they are checked rather than forgotten.
+Judgement calls no upstream fixture exercises. Listed so they are checked rather than forgotten.
 
 | Assumption | Where |
 |---|---|
-| Blank lines between table rows do **not** end the table; only a new construct does | `GherkinParser.parseTableRows` |
-| Descriptions preserve each line's original indentation, dropping only leading/trailing blank lines | `GherkinParser.parseDescription` |
-| A comment line inside a description ends the description | `GherkinParser.isStructural` |
 | Content after a table row's final `|` is ignored | `GherkinLine.tableCells` |
 | An unrecognised cell escape (`\x`) is preserved verbatim, backslash included | `GherkinLine.tableCells` |
-| Cell columns are computed on the unescaped buffer, so escapes before cell content shift the reported column | `GherkinLine.buildCell` |
+| A second data table on one step ends the step rather than erroring (a second *doc string* is an error, and is covered) | `GherkinParser.parseStep` |
+| A step line appearing after an `Examples` block is an error rather than a further step | `GherkinParser.parseScenario` |
+| `#ExamplesLine` is omitted from the expected-token list inside a `Background` | `GherkinParser.expectedAfterStep` |

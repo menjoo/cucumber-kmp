@@ -44,7 +44,7 @@ internal class GherkinLine(
      */
     fun tableCells(): List<TableCell> {
         val cells = mutableListOf<TableCell>()
-        val cell = StringBuilder()
+        val raw = StringBuilder()
         var seenFirstDelimiter = false
         var cellStartIndex = 0
         var escaping = false
@@ -52,39 +52,62 @@ internal class GherkinLine(
         for (index in trimmed.indices) {
             val char = trimmed[index]
             if (escaping) {
-                when (char) {
-                    'n' -> cell.append('\n')
-                    '\\' -> cell.append('\\')
-                    '|' -> cell.append('|')
-                    // An unrecognised escape is preserved verbatim, backslash included.
-                    else -> cell.append('\\').append(char)
-                }
+                // Collect escape sequences verbatim; they are resolved after trimming.
+                raw.append(char)
                 escaping = false
                 continue
             }
             when (char) {
-                '\\' -> escaping = true
+                '\\' -> {
+                    raw.append(char)
+                    escaping = true
+                }
                 '|' -> {
                     if (seenFirstDelimiter) {
-                        cells += buildCell(cell.toString(), cellStartIndex)
+                        cells += buildCell(raw.toString(), cellStartIndex)
                     } else {
                         seenFirstDelimiter = true
                     }
-                    cell.clear()
+                    raw.clear()
                     cellStartIndex = index + 1
                 }
-                else -> cell.append(char)
+                else -> raw.append(char)
             }
         }
         return cells
     }
 
+    /**
+     * Trims **before** unescaping, which is not interchangeable: `\n` resolves to a newline, and
+     * trimming afterwards would eat newlines the author asked for at the start or end of a cell.
+     */
     private fun buildCell(raw: String, startIndex: Int): TableCell {
-        val leadingWhitespace = raw.indexOfFirst { !it.isWhitespace() }.let { if (it < 0) raw.length else it }
+        val leadingWhitespace =
+            raw.indexOfFirst { !it.isWhitespace() }.let { if (it < 0) raw.length else it }
         return TableCell(
             location = locationAtColumn(indent + startIndex + leadingWhitespace + 1),
-            value = raw.trim(),
+            value = unescapeCell(raw.trim()),
         )
+    }
+
+    private fun unescapeCell(value: String): String = buildString {
+        var index = 0
+        while (index < value.length) {
+            val char = value[index]
+            if (char == '\\' && index + 1 < value.length) {
+                when (val escaped = value[index + 1]) {
+                    'n' -> append('\n')
+                    '\\' -> append('\\')
+                    '|' -> append('|')
+                    // An unrecognised escape is preserved verbatim, backslash included.
+                    else -> append('\\').append(escaped)
+                }
+                index += 2
+            } else {
+                append(char)
+                index++
+            }
+        }
     }
 
     /**

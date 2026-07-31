@@ -115,7 +115,10 @@ public data class Examples(
  * One step of a scenario or background.
  *
  * [keyword] keeps its trailing space, exactly as Gherkin reports it (`"Given "`), and [text] is
- * everything after it. A step carries at most one argument: a [dataTable] or a [docString].
+ * everything after it.
+ *
+ * A step may carry a [dataTable], a [docString], or — contrary to the usual reading of "one
+ * argument per step" — **both**, in either order. Upstream accepts this, so we do too.
  */
 public data class Step(
     public val location: SourceLocation,

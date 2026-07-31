@@ -241,13 +241,14 @@ class GherkinParserTest {
 
     @Test
     fun unescapesDocStringDelimiter() {
+        // Each delimiter character is escaped individually: `"""` is written `\"\"\"`, not `\"""`.
         val docString = assertNotNull(
             featureOf(
                 "Feature: F",
                 "  Scenario: S",
                 "    Given a payload",
                 "      \"\"\"",
-                "      \\\"\"\" not a terminator",
+                "      \\\"\\\"\\\" not a terminator",
                 "      \"\"\"",
             ).scenarios.single().steps.single().docString,
         )
@@ -267,7 +268,68 @@ class GherkinParserTest {
 
         assertEquals(1, errors.size)
         assertTrue(errors.single().message.contains("unexpected end of file"))
-        assertEquals(4, errors.single().location.line)
+        // Reported at end of input — one line past the last line, column 0 — as Gherkin does.
+        assertEquals(6, errors.single().location.line)
+        assertEquals(0, errors.single().location.column)
+    }
+
+    @Test
+    fun acceptsBothADataTableAndADocStringOnOneStep() {
+        // Contrary to "one argument per step", upstream accepts both, in either order.
+        val step = featureOf(
+            "Feature: F",
+            "  Scenario: S",
+            "    Given a step with both arguments",
+            "      | id | name |",
+            "      | 1  | bob  |",
+            "      \"\"\"",
+            "      hello",
+            "      \"\"\"",
+        ).scenarios.single().steps.single()
+
+        assertEquals(2, assertNotNull(step.dataTable).rows.size)
+        assertEquals("hello", assertNotNull(step.docString).content)
+    }
+
+    @Test
+    fun reportsDanglingTagsAtEndOfFile() {
+        val errors = errorsOf("Feature: F", "@tag")
+
+        assertEquals(1, errors.size)
+        assertEquals(3, errors.single().location.line)
+        assertEquals(0, errors.single().location.column)
+        assertTrue(errors.single().message.contains("unexpected end of file"))
+    }
+
+    @Test
+    fun commentsInsideADescriptionDoNotEndIt() {
+        val feature = featureOf(
+            "Feature: F",
+            "  first line",
+            "  # a comment",
+            "  second line",
+            "  Scenario: S",
+        )
+
+        // The comment is recorded separately and excluded from the description text, but the
+        // description continues past it.
+        assertEquals("  first line\n  second line", feature.description)
+        assertEquals(1, feature.scenarios.size)
+    }
+
+    @Test
+    fun preservesEscapedNewlinesAtCellEdges() {
+        // Cells are trimmed before escapes are resolved, so a leading `\n` survives.
+        val table = assertNotNull(
+            featureOf(
+                "Feature: F",
+                "  Scenario: S",
+                "    Given a table",
+                "      | \\nleading and trailing\\n |",
+            ).scenarios.single().steps.single().dataTable,
+        )
+
+        assertEquals("\nleading and trailing\n", table.rows.single().cells.single().value)
     }
 
     @Test

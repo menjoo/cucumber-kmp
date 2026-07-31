@@ -15,6 +15,10 @@ import io.github.menjoo.cucumberkmp.core.gherkin.DocString.Companion.DOC_STRING_
  * string. On the JVM the Gradle plugin reads the file; on Native and Wasm the text arrives as
  * generated code. See ARCHITECTURE.md §4a.
  *
+ * Behaviour is pinned by upstream cucumber/gherkin's own test corpus — see `GherkinCorpusTest`.
+ * Error messages and positions are reproduced from it, including the `expected: #Token, …` lists,
+ * because those strings are what users compare against Cucumber's output.
+ *
  * ```kotlin
  * val document = GherkinParser.parse("calculator.feature", source)
  * ```
@@ -59,8 +63,8 @@ private class Parser(private val path: String, source: String) {
 
     private val errors = mutableListOf<GherkinParseError>()
 
-    // Keyed by line number so that re-reading a line is idempotent. The Examples lookahead in
-    // parseScenario rewinds the cursor, and a plain list would record those comments twice.
+    // Keyed by line number so that re-reading a line is idempotent. The tag lookahead in
+    // parseScenario and parseRule rewinds the cursor, and a plain list would record twice.
     private val comments = mutableMapOf<Int, Comment>()
 
     private var language = GherkinDialects.DEFAULT_LANGUAGE
@@ -90,14 +94,20 @@ private class Parser(private val path: String, source: String) {
             val line = current() ?: return
             when {
                 line.isBlank -> advance()
-                isComment(line) -> {
-                    comments[line.lineNumber] = Comment(line.locationAtColumn(1), line.text)
-                    advance()
-                }
+                isComment(line) -> collectComment(line)
                 else -> return
             }
         }
     }
+
+    private fun collectComment(line: GherkinLine) {
+        comments[line.lineNumber] = Comment(line.locationAtColumn(1), line.text)
+        advance()
+    }
+
+    /** Gherkin reports end-of-file errors one line past the last line, at column 0. */
+    private fun endOfInput(): SourceLocation =
+        SourceLocation(path, lines.size + 1, SourceLocation.END_OF_INPUT_COLUMN)
 
     private fun report(line: GherkinLine, expected: List<String>) {
         report(line.location(), "expected: ${expected.joinToString()}, got '${line.trimmed}'")
@@ -135,18 +145,26 @@ private class Parser(private val path: String, source: String) {
         else -> null
     }
 
-    /** True for any line that begins a new construct, and therefore ends a description. */
-    private fun isStructural(line: GherkinLine): Boolean =
+    /** A line that starts a sibling or parent construct, and so ends the current one. */
+    private fun isBoundary(line: GherkinLine): Boolean =
         isTagLine(line) ||
             isFeatureLine(line) ||
             isRuleLine(line) ||
             isBackgroundLine(line) ||
-            isScenarioLine(line) ||
+            isScenarioLine(line)
+
+    /**
+     * A line that begins any construct, and therefore ends a free-text description.
+     *
+     * Comments are deliberately absent: upstream lets a comment sit *inside* a description without
+     * ending it, and excludes the comment line from the description text.
+     */
+    private fun isConstructStart(line: GherkinLine): Boolean =
+        isBoundary(line) ||
             isExamplesLine(line) ||
             isStepLine(line) ||
             isTableRow(line) ||
-            docStringDelimiter(line) != null ||
-            isComment(line)
+            docStringDelimiter(line) != null
 
     /**
      * Matches a `Keyword:` line, longest keyword first.
@@ -165,7 +183,8 @@ private class Parser(private val path: String, source: String) {
 
     /** Matches a scenario or scenario-outline line, preferring the outline keyword. */
     private fun matchScenarioKeyword(line: GherkinLine): KeywordMatch? =
-        matchKeyword(line, dialect.scenarioOutlineKeywords) ?: matchKeyword(line, dialect.scenarioKeywords)
+        matchKeyword(line, dialect.scenarioOutlineKeywords)
+            ?: matchKeyword(line, dialect.scenarioKeywords)
 
     /** Step keywords keep their trailing space and take no colon. */
     private fun matchStepKeyword(line: GherkinLine): KeywordMatch? {
@@ -195,10 +214,7 @@ private class Parser(private val path: String, source: String) {
                     applyLanguageHeader(line)
                     advance()
                 }
-                isComment(line) -> {
-                    comments[line.lineNumber] = Comment(line.locationAtColumn(1), line.text)
-                    advance()
-                }
+                isComment(line) -> collectComment(line)
                 isTagLine(line) -> {
                     tags = tags + readTagLine(line)
                     advance()
@@ -248,16 +264,26 @@ private class Parser(private val path: String, source: String) {
     /**
      * Collects free-text description lines.
      *
-     * Interior blank lines are preserved, leading and trailing ones dropped. Original indentation
-     * is kept, matching upstream.
+     * Interior blank lines are preserved, leading and trailing ones dropped, and original
+     * indentation is kept. Comment lines are recorded as comments and skipped without ending the
+     * description.
      */
     private fun parseDescription(): String {
         val collected = mutableListOf<String>()
         while (true) {
             val line = current() ?: break
-            if (!line.isBlank && isStructural(line)) break
-            collected += line.text
-            advance()
+            when {
+                isComment(line) -> collectComment(line)
+                line.isBlank -> {
+                    collected += line.text
+                    advance()
+                }
+                isConstructStart(line) -> break
+                else -> {
+                    collected += line.text
+                    advance()
+                }
+            }
         }
         return collected
             .dropWhile { it.isBlank() }
@@ -273,7 +299,12 @@ private class Parser(private val path: String, source: String) {
 
         while (true) {
             skipBlanksAndComments()
-            val line = current() ?: break
+            val line = current()
+            if (line == null) {
+                // Only the outermost loop reports this; inner loops rewind so the tags arrive here.
+                if (pendingTags.isNotEmpty()) report(endOfInput(), UNEXPECTED_EOF_AFTER_TAGS)
+                break
+            }
             when {
                 isTagLine(line) -> {
                     pendingTags = pendingTags + readTagLine(line)
@@ -311,14 +342,19 @@ private class Parser(private val path: String, source: String) {
         val description = parseDescription()
         val children = mutableListOf<RuleChild>()
         var pendingTags = emptyList<Tag>()
+        var tagPosition = position
 
         while (true) {
             skipBlanksAndComments()
-            val line = current() ?: break
-            // A Rule line ends this rule and starts the next one.
-            if (isRuleLine(line)) break
+            val line = current()
+            // Hand pending tags back to the caller: they belong to whatever follows this rule.
+            if (line == null || isRuleLine(line) || isFeatureLine(line)) {
+                if (pendingTags.isNotEmpty()) position = tagPosition
+                break
+            }
             when {
                 isTagLine(line) -> {
+                    if (pendingTags.isEmpty()) tagPosition = position
                     pendingTags = pendingTags + readTagLine(line)
                     advance()
                 }
@@ -354,12 +390,34 @@ private class Parser(private val path: String, source: String) {
         val line = requireNotNull(current())
         val match = requireNotNull(matchKeyword(line, dialect.backgroundKeywords))
         advance()
+
+        val description = parseDescription()
+        val steps = mutableListOf<Step>()
+        var stepHasDocString = false
+
+        while (true) {
+            skipBlanksAndComments()
+            val next = current() ?: break
+            when {
+                isStepLine(next) -> {
+                    val step = parseStep()
+                    steps += step
+                    stepHasDocString = step.docString != null
+                }
+                isBoundary(next) || isExamplesLine(next) -> break
+                else -> {
+                    report(next, expectedAfterStep(stepHasDocString, allowExamples = false))
+                    advance()
+                }
+            }
+        }
+
         return Background(
             location = line.location(),
             keyword = match.keyword,
             name = match.text,
-            description = parseDescription(),
-            steps = parseSteps(),
+            description = description,
+            steps = steps,
         )
     }
 
@@ -369,20 +427,24 @@ private class Parser(private val path: String, source: String) {
         advance()
 
         val description = parseDescription()
-        val steps = parseSteps()
-
+        val steps = mutableListOf<Step>()
         val examples = mutableListOf<Examples>()
         var pendingTags = emptyList<Tag>()
-        var savedPosition = position
+        var tagPosition = position
+        var stepHasDocString = false
 
         while (true) {
             skipBlanksAndComments()
-            val next = current() ?: break
+            val next = current()
+            // Pending tags may belong to an Examples block or to the next scenario; committing
+            // only once an Examples line follows keeps the lookahead honest.
+            if (next == null) {
+                if (pendingTags.isNotEmpty()) position = tagPosition
+                break
+            }
             when {
                 isTagLine(next) -> {
-                    // These tags may belong to an Examples block or to the next scenario; only
-                    // committing once an Examples line follows keeps the lookahead honest.
-                    if (pendingTags.isEmpty()) savedPosition = position
+                    if (pendingTags.isEmpty()) tagPosition = position
                     pendingTags = pendingTags + readTagLine(next)
                     advance()
                 }
@@ -390,9 +452,18 @@ private class Parser(private val path: String, source: String) {
                     examples += parseExamples(pendingTags)
                     pendingTags = emptyList()
                 }
-                else -> {
-                    if (pendingTags.isNotEmpty()) position = savedPosition // hand the tags back
+                isBoundary(next) -> {
+                    if (pendingTags.isNotEmpty()) position = tagPosition
                     break
+                }
+                isStepLine(next) && examples.isEmpty() -> {
+                    val step = parseStep()
+                    steps += step
+                    stepHasDocString = step.docString != null
+                }
+                else -> {
+                    report(next, expectedAfterStep(stepHasDocString, allowExamples = true))
+                    advance()
                 }
             }
         }
@@ -415,6 +486,7 @@ private class Parser(private val path: String, source: String) {
 
         val description = parseDescription()
         val rows = parseTableRows()
+        validateCellCounts(rows)
 
         return Examples(
             location = line.location(),
@@ -424,53 +496,55 @@ private class Parser(private val path: String, source: String) {
             tags = tags,
             tableHeader = rows.firstOrNull(),
             tableBody = rows.drop(1),
-        ).also { validateCellCounts(rows, "examples table") }
+        )
     }
 
     // ----------------------------------------------------------------- steps
 
-    private fun parseSteps(): List<Step> {
-        val steps = mutableListOf<Step>()
+    private fun parseStep(): Step {
+        val line = requireNotNull(current())
+        val match = requireNotNull(matchStepKeyword(line))
+        advance()
+
+        var dataTable: DataTable? = null
+        var docString: DocString? = null
+
+        // A step may carry a data table *and* a doc string, in either order — upstream's
+        // step_with_datatable_and_docstring.feature has both orderings and expects no errors.
+        // At most one of each: a repeated doc string is an error (repeated_step_docstring.feature).
         while (true) {
             skipBlanksAndComments()
-            val line = current() ?: break
-            val match = matchStepKeyword(line) ?: break
-            advance()
-
-            var dataTable: DataTable? = null
-            var docString: DocString? = null
-
-            skipBlanksAndComments()
-            val argument = current()
-            if (argument != null) {
-                val delimiter = docStringDelimiter(argument)
-                when {
-                    delimiter != null -> docString = parseDocString(argument, delimiter)
-                    isTableRow(argument) -> {
-                        val rows = parseTableRows()
-                        validateCellCounts(rows, "table")
-                        dataTable = rows.firstOrNull()?.let { DataTable(it.location, rows) }
-                    }
-                }
+            val argument = current() ?: break
+            val delimiter = docStringDelimiter(argument)
+            if (delimiter != null && docString == null) {
+                docString = parseDocString(argument, delimiter)
+                continue
             }
-
-            steps += Step(
-                location = line.location(),
-                keyword = match.keyword,
-                keywordType = dialect.stepKeywordType(match.keyword),
-                text = match.text,
-                dataTable = dataTable,
-                docString = docString,
-            )
+            if (isTableRow(argument) && dataTable == null) {
+                val rows = parseTableRows()
+                validateCellCounts(rows)
+                dataTable = rows.firstOrNull()?.let { DataTable(it.location, rows) }
+                continue
+            }
+            break
         }
-        return steps
+
+        return Step(
+            location = line.location(),
+            keyword = match.keyword,
+            keywordType = dialect.stepKeywordType(match.keyword),
+            text = match.text,
+            dataTable = dataTable,
+            docString = docString,
+        )
     }
 
     /**
      * Reads consecutive table rows.
      *
-     * Blank lines and comments between rows do not end the table — Gherkin allows them almost
-     * everywhere, and a table is terminated by the next construct instead.
+     * Blank lines and comments between rows do not end the table — upstream's
+     * `datatables.feature` has both inside a single table, and a table is terminated by the next
+     * construct instead.
      */
     private fun parseTableRows(): List<TableRow> {
         val rows = mutableListOf<TableRow>()
@@ -484,11 +558,11 @@ private class Parser(private val path: String, source: String) {
         return rows
     }
 
-    private fun validateCellCounts(rows: List<TableRow>, what: String) {
+    private fun validateCellCounts(rows: List<TableRow>) {
         val expected = rows.firstOrNull()?.cells?.size ?: return
         for (row in rows.drop(1)) {
             if (row.cells.size != expected) {
-                report(row.location, "inconsistent cell count within the $what")
+                report(row.location, "inconsistent cell count within the table")
             }
         }
     }
@@ -512,7 +586,7 @@ private class Parser(private val path: String, source: String) {
         }
 
         if (!closed) {
-            report(open.location(), "unexpected end of file, expected: #DocStringSeparator")
+            report(endOfInput(), "unexpected end of file, expected: #DocStringSeparator, #Other")
         }
 
         return DocString(
@@ -530,8 +604,13 @@ private class Parser(private val path: String, source: String) {
         return text.substring(removed)
     }
 
+    /**
+     * Resolves an escaped delimiter inside doc-string content.
+     *
+     * Each delimiter character is escaped individually, so `"""` is written `\"\"\"` — not `\"""`.
+     */
     private fun unescapeDocString(text: String, delimiter: String): String =
-        text.replace("\\$delimiter", delimiter)
+        text.replace(delimiter.map { "\\$it" }.joinToString(separator = ""), delimiter)
 
     private companion object {
         val EXPECTED_BEFORE_FEATURE =
@@ -541,13 +620,50 @@ private class Parser(private val path: String, source: String) {
         val EXPECTED_IN_RULE =
             listOf("#EOF", "#TagLine", "#BackgroundLine", "#ScenarioLine", "#RuleLine", "#Comment", "#Empty")
 
-        fun splitLines(path: String, source: String): List<GherkinLine> =
-            source
-                .removePrefix("﻿") // a UTF-8 BOM is not part of the first keyword
-                .split('\n')
-                .mapIndexed { index, text ->
-                    GherkinLine(path, index + 1, text.removeSuffix("\r"))
-                }
+        /**
+         * The token list upstream prints when a file ends with tags attached to nothing.
+         *
+         * Reproduced from its observed output rather than derived, which is why it looks narrower
+         * than the position suggests. See DEVIATIONS.md.
+         */
+        const val UNEXPECTED_EOF_AFTER_TAGS =
+            "unexpected end of file, expected: #TagLine, #RuleLine, #Comment, #Empty"
+
+        /**
+         * What may follow a step.
+         *
+         * `#DocStringSeparator` drops out once the step already owns a doc string, since it can
+         * only take one argument — upstream's `repeated_step_docstring` fixture pins this.
+         */
+        fun expectedAfterStep(hasDocString: Boolean, allowExamples: Boolean): List<String> =
+            buildList {
+                add("#EOF")
+                add("#TableRow")
+                if (!hasDocString) add("#DocStringSeparator")
+                add("#StepLine")
+                add("#TagLine")
+                if (allowExamples) add("#ExamplesLine")
+                add("#ScenarioLine")
+                add("#RuleLine")
+                add("#Comment")
+                add("#Empty")
+            }
+
+        /**
+         * Splits source into lines.
+         *
+         * A trailing newline does not create a final empty line: Gherkin counts a file ending in
+         * `\n` as having as many lines as it has newlines, and end-of-file positions are derived
+         * from that count.
+         */
+        fun splitLines(path: String, source: String): List<GherkinLine> {
+            val withoutBom = source.removePrefix("﻿")
+            val raw = withoutBom.split('\n').toMutableList()
+            if (raw.size > 1 && raw.last().isEmpty()) raw.removeAt(raw.lastIndex)
+            return raw.mapIndexed { index, text ->
+                GherkinLine(path, index + 1, text.removeSuffix("\r"))
+            }
+        }
     }
 }
 
