@@ -125,8 +125,10 @@ this half:
 - Input: a configurable feature source set (default `src/commonTest/resources/features`).
 - Parse each file with the **JVM build of `cucumber-kmp-core`'s parser** — the parser is
   multiplatform, and the plugin simply runs it on the JVM during the build.
-- Output: for `calculator.feature`, a `CalculatorFeatureTest.kt` into a generated source
-  directory added to `commonTest`, containing:
+- Output: for `calculator.feature`, a `CalculatorFeatureTest.kt` into a generated source directory
+  added to **every target's test source set** — not to `commonTest`. A KSP-generated step registry
+  only exists per target compilation and `commonTest` compiles to metadata that cannot see it, so
+  generating per target avoids the `expect`/`actual` shim entirely (§13.1). The file contains:
   - the parsed `Feature` AST as Kotlin constructor calls (this is how the feature text reaches
     Native and Wasm — as compiled code, never as a file read);
   - one `@Test fun` per `Scenario`, and one per `Examples` row of a `Scenario Outline`;
@@ -414,7 +416,8 @@ source locations and result data those formats need, so this is additive.
 | 1c | Tag expressions | ✅ all 64 upstream fixtures pass on every Tier A target |
 | 1d | Pickle compiler, step matcher, runner, `steps { }` DSL | ✅ all 50 upstream pickle traces match; a `.feature` file executes end to end on every Tier A target |
 | 2 | KSP processor generating `GeneratedStepRegistry` | ✅ annotated steps run on every Tier A target; ten kinds of mistake are build errors with source locations |
-| 3 | Gradle plugin generating test classes from `.feature` files | `examples/calculator` is green on `jvmTest`, `testDebugUnitTest`, `macosArm64Test`, `iosSimulatorArm64Test`, `jsTest`, `wasmJsTest` |
+| 3a | Gradle plugin generating test classes from `.feature` files | ✅ one test class per feature, one function per scenario, cacheable and incremental; 18 tests |
+| 3b | `examples/calculator` end to end against published artifacts | Green on `jvmTest`, `testAndroidHostTest`, `macosArm64Test`, `iosSimulatorArm64Test`, `jsTest`, `wasmJsTest` |
 | 4 | Gherkin completeness (outlines, tables, doc strings, tags, rules, i18n) | The official "good" corpus parses; the "bad" corpus fails with the expected line numbers |
 | 5 | **On-device verification** — Android instrumented tests, then the iOS XCTest host app | `connectedDebugAndroidTest` green on a device/AVD; `xcodebuild test` green on the iPhone 13; regex conformance confirmed on ART |
 | 6 | Cucumber Messages output + Compatibility Kit | CCK scenarios pass on JVM; documented gaps elsewhere |
