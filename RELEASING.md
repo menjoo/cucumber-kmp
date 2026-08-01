@@ -44,24 +44,41 @@ git commit -am 'Open 1.0.1-SNAPSHOT for development'
 
 1. **Check** the requested version matches `main`, is not a `-SNAPSHOT`, is semantic, and has no
    existing tag. Published versions are immutable, so re-releasing one is worth catching first.
-2. **Verify** — `./gradlew build`, the whole matrix.
-3. **Verify what a consumer gets** — publish to `mavenLocal` and build `examples/calculator`
-   against those real artifacts, not substituted projects. The last chance to catch a packaging or
-   source-set problem while the version is still reversible.
-4. **Tag** and push the tag.
-5. **Publish** to GitHub Packages.
+2. **Check the Central configuration** — before building, so a missing secret costs seconds rather
+   than a full matrix.
+3. **Verify** — `./gradlew build`, the whole matrix.
+4. **Verify what a consumer gets** — publish to `mavenLocal` *signed*, and build
+   `examples/calculator` against those real artifacts rather than substituted projects.
+5. **Verify the deployment would pass Central** — `verify-publishable.py` applies Central's own
+   rules to that local publication: sources jar, javadoc jar, a signature for every
+   `.jar`/`.pom`/`.module`, and the six required POM elements.
+6. **Tag** and push the tag.
+7. **Publish** to GitHub Packages, then to Maven Central.
 
-Steps 4 and 5 are in that order deliberately. Publishing is the irreversible half — a Maven Central
+Steps 6 and 7 are in that order deliberately. Publishing is the irreversible half — a Central
 artifact cannot be deleted — so a published artifact with no tag is a permanent inconsistency. A tag
 with no artifact is not: delete it, fix the problem, run again.
+
+Step 5 exists because 0.1.0 was lost without it. Central validates a deployment as a unit and
+rejects it wholesale, but only *after* the tag has been pushed; two JVM-only modules were missing
+sources, javadoc, signatures and POM metadata. GitHub Packages had accepted them without complaint,
+which is the trap: **publishing successfully somewhere is not evidence that Central will take it.**
+The check now runs while the release is still reversible.
+
+Run it yourself any time:
+
+```bash
+./gradlew publishToMavenLocal          # add SIGNING_KEY to check signatures too
+.github/scripts/verify-publishable.py  # --no-signatures for an unsigned build
+```
 
 ## If it fails part way
 
 | Failed at | State | What to do |
 |---|---|---|
-| Steps 1–3 | Nothing tagged, nothing published | Fix and re-run. |
-| Step 4 (tag) | Nothing published | Re-run. |
-| Step 5 (publish) | Tagged but not published | Delete the tag, fix, run again: `git push --delete origin v1.0.0` |
+| Steps 1–5 | Nothing tagged, nothing published | Fix and re-run. |
+| Step 6 (tag) | Nothing published | Re-run. |
+| Step 7 (publish) | Tagged but not published | Delete the tag, fix, run again: `git push --delete origin v1.0.0`. Note GitHub Packages may already hold the version, and re-publishing a deleted Packages version can be refused — releasing the next patch is usually safer than reusing the number. |
 
 ## Why not one button
 

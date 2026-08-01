@@ -1,14 +1,17 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
-    `maven-publish`
+    id("cucumberkmp.publishing")
 }
-
-group = "io.github.menjoo.cucumberkmp"
-version = providers.gradleProperty("cucumberkmp.version").get()
 
 kotlin {
     explicitApi()
     jvmToolchain(21)
+}
+
+// Central requires a sources jar. Kotlin Multiplatform produces one per target automatically;
+// a plain JVM module has to ask.
+java {
+    withSourcesJar()
 }
 
 dependencies {
@@ -28,3 +31,4 @@ publishing {
         from(components["java"])
     }
 }
+// The POM, javadoc jar, signing and repositories come from cucumberkmp.publishing.

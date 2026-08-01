@@ -1,15 +1,18 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     `java-gradle-plugin`
-    `maven-publish`
+    id("cucumberkmp.publishing")
 }
-
-group = "io.github.menjoo.cucumberkmp"
-version = providers.gradleProperty("cucumberkmp.version").get()
 
 kotlin {
     explicitApi()
     jvmToolchain(21)
+}
+
+// Central requires a sources jar; java-gradle-plugin does not add one. It attaches to the
+// `pluginMaven` publication, not to the plugin marker, which is correct — a marker is POM-only.
+java {
+    withSourcesJar()
 }
 
 dependencies {

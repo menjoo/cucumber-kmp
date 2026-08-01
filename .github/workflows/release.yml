@@ -85,29 +85,7 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
           restore-keys: konan-${{ runner.os }}-
 
-      - name: Verify
-        run: ./gradlew build --stacktrace
-
-      # Builds the example against the very artifacts about to be published, rather than against
-      # substituted projects. The last chance to catch a packaging or source-set problem before
-      # the version becomes immutable.
-      - name: Verify the artifacts a consumer would get
-        run: |
-          ./gradlew publishToMavenLocal --stacktrace
-          ./gradlew -p examples/calculator build -Pcucumberkmp.composite=false --stacktrace
-
-      # Tag BEFORE publishing. Publishing is the irreversible half: an artifact with no tag cannot
-      # be undone, whereas a tag with no artifact is deleted and retried.
-      - name: Tag the release
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git tag -a 'v${{ inputs.version }}' -m 'Release ${{ inputs.version }}'
-          git push origin 'v${{ inputs.version }}'
-
-      # Maven Central is skipped until its secrets exist, so the workflow works before and after
-      # the Sonatype setup without being edited. Signing is checked here rather than being left to
-      # fail deep inside the upload, where the message is far less obvious.
+      # Checked before anything is built so a missing secret costs seconds, not a full matrix.
       - name: Check Maven Central configuration
         id: central
         env:
@@ -124,6 +102,36 @@ jobs:
             exit 1
           fi
           echo 'configured=true' >> "$GITHUB_OUTPUT"
+
+      - name: Verify
+        run: ./gradlew build --stacktrace
+
+      # Builds the example against the very artifacts about to be published, rather than against
+      # substituted projects. Signing is switched on so the local publication is byte-for-byte what
+      # the registries will receive, which is what makes the next step meaningful.
+      - name: Verify the artifacts a consumer would get
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: |
+          ./gradlew publishToMavenLocal --stacktrace
+          ./gradlew -p examples/calculator build -Pcucumberkmp.composite=false --stacktrace
+
+      # Central validates the whole deployment and rejects it as a unit — but only after the
+      # release has been tagged and pushed. Running the same checks here moves that failure into
+      # the reversible half. 0.1.0 was lost to precisely this.
+      - name: Verify the deployment would pass Maven Central
+        if: ${{ steps.central.outputs.configured == 'true' }}
+        run: .github/scripts/verify-publishable.py --version '${{ inputs.version }}'
+
+      # Tag BEFORE publishing. Publishing is the irreversible half: an artifact with no tag cannot
+      # be undone, whereas a tag with no artifact is deleted and retried.
+      - name: Tag the release
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a 'v${{ inputs.version }}' -m 'Release ${{ inputs.version }}'
+          git push origin 'v${{ inputs.version }}'
 
       - name: Publish to GitHub Packages
         env:
