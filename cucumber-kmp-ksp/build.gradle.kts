@@ -24,6 +24,15 @@ dependencies {
     // run time. This is the JVM artifact of a multiplatform module — the same trick the Gradle
     // plugin will use for reading .feature files.
     implementation(project(":cucumber-kmp-core"))
+
+    testImplementation(kotlin("test"))
+    testImplementation(libs.kctfork.ksp)
+    // The processor reads these annotations, so the compiled snippets need them on the classpath.
+    testImplementation(project(":cucumber-kmp-annotations"))
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 publishing {
