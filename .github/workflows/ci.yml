@@ -68,6 +68,50 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  # Consumes the published artifacts from a standalone build, which is the only way to check that
+  # the Gradle plugin registers its generated sources with every target's test source set. The
+  # plugin's own tests skip that deliberately — see its functional test.
+  example:
+    name: examples/calculator (published artifacts)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Cache Konan
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-
+
+      - name: Publish to mavenLocal
+        run: ./gradlew publishToMavenLocal --stacktrace
+
+      - name: Build the example against them
+        run: ./gradlew -p examples/calculator build linkDebugTestIosArm64 --stacktrace
+
+      - name: Upload test reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-example
+          path: examples/calculator/build/reports/tests/**
+          retention-days: 7
+          if-no-files-found: ignore
+
   # Kept separate so a Karma or browser-startup flake cannot block the main gate, while still
   # running on every pull request.
   browser:

@@ -4,10 +4,13 @@
 > code lands — the roadmap in §12 marks what is done, and anything that turned out differently in
 > practice is corrected here rather than left as an aspiration.
 >
-> Status: **Phase 0 and Phase 1 complete.** The engine parses, compiles, matches and runs a
-> `.feature` file end to end on all six Tier A targets, pinned against upstream Cucumber's own test
-> data. Next: KSP annotations (Phase 2) and the Gradle plugin that generates one test per scenario
-> (Phase 3) — the point at which a `.feature` file dropped in the repository simply runs.
+> Status: **Phases 0–3 complete — the core promise works.** A `.feature` file dropped into a
+> project produces one test per scenario, running on all six Tier A targets, with step definitions
+> found by KSP and no runtime reflection anywhere. Verified end to end in `examples/calculator`,
+> which consumes published artifacts like any other project would.
+>
+> Next: on-device verification (Phase 5) and Cucumber Messages plus the Compatibility Kit
+> (Phase 6).
 
 ## 1. Goal
 
@@ -417,7 +420,7 @@ source locations and result data those formats need, so this is additive.
 | 1d | Pickle compiler, step matcher, runner, `steps { }` DSL | ✅ all 50 upstream pickle traces match; a `.feature` file executes end to end on every Tier A target |
 | 2 | KSP processor generating `GeneratedStepRegistry` | ✅ annotated steps run on every Tier A target; ten kinds of mistake are build errors with source locations |
 | 3a | Gradle plugin generating test classes from `.feature` files | ✅ one test class per feature, one function per scenario, cacheable and incremental; 18 tests |
-| 3b | `examples/calculator` end to end against published artifacts | Green on `jvmTest`, `testAndroidHostTest`, `macosArm64Test`, `iosSimulatorArm64Test`, `jsTest`, `wasmJsTest` |
+| 3b | `examples/calculator` end to end against published artifacts | ✅ a `.feature` file yields 6 scenarios running on all 6 Tier A targets, plus an `iosArm64` link check, from a standalone build resolving published artifacts |
 | 4 | Gherkin completeness (outlines, tables, doc strings, tags, rules, i18n) | The official "good" corpus parses; the "bad" corpus fails with the expected line numbers |
 | 5 | **On-device verification** — Android instrumented tests, then the iOS XCTest host app | `connectedDebugAndroidTest` green on a device/AVD; `xcodebuild test` green on the iPhone 13; regex conformance confirmed on ART |
 | 6 | Cucumber Messages output + Compatibility Kit | CCK scenarios pass on JVM; documented gaps elsewhere |

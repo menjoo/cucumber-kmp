@@ -64,6 +64,9 @@ internal class StepDefinitionProcessor(
             val expressions = function.annotations
                 .filter { it.shortName.asString() in STEP_ANNOTATION_NAMES }
                 .mapNotNull { it.stringArgument("value") }
+                // `@Given("x") @Then("x")` on one function is redundant, not ambiguous: Gherkin
+                // does not match on the keyword, so both annotations mean the same definition.
+                .distinct()
                 .toList()
             for (expression in expressions) {
                 bindStep(function, expression)?.let { steps += it }
@@ -102,6 +105,12 @@ internal class StepDefinitionProcessor(
         val isRegex = expression.startsWith("^") && expression.endsWith("$")
         val parameterTypes = function.parameters.map { it.type.toTypeName() }
 
+        // A trailing DataTable or DocString parameter receives the step's attachment rather than
+        // one of the expression's captures, so it sits outside the placeholder checks below.
+        val hasAttachment = parameterTypes.lastOrNull()
+            ?.copy(nullable = false)?.toString() in ATTACHMENT_TYPES
+        val capturedTypes = if (hasAttachment) parameterTypes.dropLast(1) else parameterTypes
+
         if (isRegex) {
             // A raw regular expression opts out of placeholder checking: its capture groups carry
             // no type information for us to check against.
@@ -111,8 +120,8 @@ internal class StepDefinitionProcessor(
             }
         } else {
             val placeholders = parsePlaceholders(function, expression) ?: return null
-            if (!checkArity(function, expression, placeholders, parameterTypes)) return null
-            if (!checkTypes(function, placeholders, parameterTypes)) return null
+            if (!checkArity(function, expression, placeholders, capturedTypes)) return null
+            if (!checkTypes(function, placeholders, capturedTypes)) return null
         }
 
         return StepBinding(
@@ -290,7 +299,9 @@ internal class StepDefinitionProcessor(
 
     private fun reportDuplicateExpressions(steps: List<StepBinding>) {
         steps.groupBy { it.expression }
-            .filterValues { it.size > 1 }
+            // Only distinct functions can be ambiguous; one function is one definition however
+            // many equivalent annotations it carries.
+            .filterValues { group -> group.distinctBy { it.declaration }.size > 1 }
             .forEach { (expression, duplicates) ->
                 val locations = duplicates.joinToString(", ") { it.location }
                 duplicates.forEach { duplicate ->
@@ -456,6 +467,17 @@ internal class StepDefinitionProcessor(
          * `biginteger` and `bigdecimal` yield `String` because Kotlin's common stdlib has no
          * arbitrary-precision numerics — see DEVIATIONS.md.
          */
+        /**
+         * Types a trailing step parameter may have to receive the step's attachment.
+         *
+         * A data table or doc string written under a step is an argument to it, supplied by the
+         * runner after the expression's captures.
+         */
+        val ATTACHMENT_TYPES = setOf(
+            "$CORE.gherkin.DataTable",
+            "$CORE.gherkin.DocString",
+        )
+
         val BUILT_IN_PARAMETER_TYPES = mapOf(
             "int" to "kotlin.Int",
             "long" to "kotlin.Long",

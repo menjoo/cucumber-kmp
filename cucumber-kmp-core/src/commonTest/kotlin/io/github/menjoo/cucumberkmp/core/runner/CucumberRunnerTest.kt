@@ -1,5 +1,7 @@
 package io.github.menjoo.cucumberkmp.core.runner
 
+import io.github.menjoo.cucumberkmp.core.gherkin.DataTable
+import io.github.menjoo.cucumberkmp.core.gherkin.DocString
 import io.github.menjoo.cucumberkmp.core.gherkin.GherkinParser
 import io.github.menjoo.cucumberkmp.core.gherkin.Pickle
 import io.github.menjoo.cucumberkmp.core.gherkin.PickleCompiler
@@ -280,6 +282,50 @@ class CucumberRunnerTest {
         assertTrue(message.contains("- never"), message)
         assertTrue(message.contains("kaboom"), message)
         assertEquals("kaboom", failure.cause?.message)
+    }
+
+    @Test
+    fun passesADataTableAsTheLastArgument() = runTest {
+        var captured: DataTable? = null
+        val registry = steps {
+            given("the users") { table: DataTable -> captured = table }
+        }
+
+        val result = CucumberRunner(registry).run(
+            picklesOf(
+                "Feature: F",
+                "  Scenario: S",
+                "    Given the users",
+                "      | name | age |",
+                "      | ann  | 30  |",
+            ).single(),
+        )
+
+        assertTrue(result.isPassed, result.failure?.message)
+        assertEquals(2, assertNotNull(captured).rows.size)
+        assertEquals("ann", assertNotNull(captured).rows[1].cells[0].value)
+    }
+
+    @Test
+    fun passesADocStringAfterTheCapturedArguments() = runTest {
+        var captured: Pair<Int, String>? = null
+        val registry = steps {
+            given("payload {int}") { id: Int, body: DocString -> captured = id to body.content }
+        }
+
+        val result = CucumberRunner(registry).run(
+            picklesOf(
+                "Feature: F",
+                "  Scenario: S",
+                "    Given payload 7",
+                "      \"\"\"",
+                "      hello",
+                "      \"\"\"",
+            ).single(),
+        )
+
+        assertTrue(result.isPassed, result.failure?.message)
+        assertEquals(7 to "hello", captured)
     }
 
     @Test

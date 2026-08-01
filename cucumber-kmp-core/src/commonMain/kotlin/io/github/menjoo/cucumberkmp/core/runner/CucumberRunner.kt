@@ -136,12 +136,22 @@ public class CucumberRunner(
             )
 
             is StepMatch.Matched -> try {
-                match.definition.body(match.arguments.map { it.value })
+                match.definition.body(argumentsFor(step, match))
                 StepResult(step, StepStatus.PASSED)
             } catch (failure: Throwable) {
                 StepResult(step, StepStatus.FAILED, failure = failure)
             }
         }
+
+    /**
+     * The values handed to a step body: the expression's captures, then the step's attachment.
+     *
+     * A `DataTable` or `DocString` written under a step is an argument to it, so it arrives after
+     * the captured parameters — matching Cucumber, where the attachment is always the last
+     * parameter of the step definition.
+     */
+    private fun argumentsFor(step: PickleStep, match: StepMatch.Matched): List<Any?> =
+        match.arguments.map { it.value } + listOfNotNull(step.dataTable, step.docString)
 
     private suspend fun runHooks(
         registry: StepRegistry,

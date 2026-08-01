@@ -7,42 +7,69 @@ scanning and no runtime filesystem access.
 The point is that non-developers keep writing plain-text `.feature` files in the repository, while
 the tests those files describe run natively on every target the app ships to.
 
-> **Status: early.** The engine works end to end and is pinned against upstream Cucumber's own test
-> data, but the KSP annotations and the Gradle plugin that generates one test per scenario are not
-> built yet. Nothing is published to Maven Central. See [ARCHITECTURE.md](ARCHITECTURE.md) for the
-> design and the roadmap.
+> **Status: works end to end, not yet released.** Feature files run on all six locally verifiable
+> targets, verified in [`examples/calculator`](examples/calculator) against published artifacts.
+> Nothing is on Maven Central yet. See [ARCHITECTURE.md](ARCHITECTURE.md) for the design and
+> roadmap.
 
-## What works today
+## How it looks
 
-Parse, compile, match, run — on all six locally verifiable targets:
+Write the feature — this is the file a PO or QA owns, and no Kotlin appears in it:
+
+```gherkin
+Feature: Calculator
+  Scenario Outline: a <percentage>% discount on <total>
+    Given I have entered <total>
+    And I press add
+    When I apply a discount of <percentage> percent
+    Then the result should be <expected>
+
+    Examples:
+      | total | percentage | expected |
+      | 100   | 20         | 80       |
+      | 250   | 10         | 225      |
+```
+
+Write the step definitions once, in `commonTest`:
 
 ```kotlin
-val calculatorSteps = steps {
-    var calculator = Calculator()          // fresh for every scenario
+@Steps
+class CalculatorSteps {
+    private val calculator = Calculator()      // fresh instance for every scenario
 
-    given("I have entered {int}") { value: Int -> calculator.enter(value) }
-    whenever("I press add") { calculator.add() }
-    then("the result should be {int}") { expected: Int ->
-        assertEquals(expected, calculator.result)
-    }
-}
+    @Given("I have entered {double}")
+    fun iHaveEntered(value: Double) = calculator.enter(value)
 
-@Test
-fun addsTwoNumbers() = runTest {
-    val document = GherkinParser.parse("calculator.feature", featureSource)
-    val pickles = PickleCompiler.compile(document)
-    CucumberRunner(calculatorSteps).runOrThrow(pickles.single())
+    @When("I apply a discount of {int} percent")
+    fun iApplyADiscount(percentage: Int) = calculator.applyDiscount(percentage)
+
+    @Then("the result should be {double}")
+    fun theResultShouldBe(expected: Double) = assertEquals(expected, calculator.result)
 }
 ```
 
-The `steps { }` DSL is the mechanism the framework stands on, not a fallback: because it returns a
-factory the runner calls once per scenario, a `var` declared inside the block is fresh each time, so
-per-scenario isolation falls out of ordinary Kotlin closures — no dependency-injection container and
-no reflection. The `@Given`/`@When`/`@Then` annotations, when they arrive, will be sugar over this.
+The build does the rest: KSP turns the annotations into a static step registry, and the Gradle
+plugin turns each scenario into a `@Test`. Adding a row to that `Examples` table adds a test — on
+every target — and nothing else changes.
+
+Annotations are optional. The `steps { }` DSL underneath them needs no code generation at all:
+
+```kotlin
+val calculatorSteps = steps {
+    var calculator = Calculator()              // fresh for every scenario
+    given("I have entered {int}") { value: Int -> calculator.enter(value) }
+    whenever("I press add") { calculator.add() }
+}
+```
+
+Because `steps { }` returns a factory the runner calls once per scenario, a `var` declared inside
+the block is fresh each time — per-scenario isolation falls out of ordinary Kotlin closures, with no
+dependency-injection container and no reflection.
 
 Also implemented: the full 80-language Gherkin dialect table, Cucumber Expressions with all of
 Cucumber's built-in parameter types, tag expressions, backgrounds, scenario outlines, data tables,
-doc strings, rules, hooks, and undefined/ambiguous step reporting with paste-able snippets.
+doc strings, rules, hooks, tag filtering, and undefined/ambiguous step reporting with paste-able
+snippets.
 
 ## Conformance
 
