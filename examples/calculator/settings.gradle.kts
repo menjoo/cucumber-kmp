@@ -8,15 +8,22 @@
 //                        and debug straight into the library sources.
 //
 //   published            -Pcucumberkmp.composite=false resolves real artifacts from mavenLocal
-//                        instead. This is what CI runs, because substituting projects would hide
-//                        exactly the packaging and source-set wiring the example exists to check.
+//                        instead. This is what CI runs for the full matrix, because substituting
+//                        projects would hide exactly the packaging and source-set wiring the
+//                        example exists to check.
 //
 //     ./gradlew -p examples/calculator build
 //     ./gradlew publishToMavenLocal && ./gradlew -p examples/calculator build -Pcucumberkmp.composite=false
+//
+// Note that mavenLocal is only a repository in published mode. That is deliberate: with it always
+// present, composite mode would silently fall back to previously published artifacts and appear to
+// work even when substitution was broken — which is exactly what happened once.
 
 pluginManagement {
     repositories {
-        mavenLocal()
+        if (!providers.gradleProperty("cucumberkmp.composite").getOrElse("true").toBoolean()) {
+            mavenLocal()
+        }
         google()
         gradlePluginPortal()
         mavenCentral()
@@ -25,7 +32,8 @@ pluginManagement {
     // `providers` resolves to the enclosing Settings object; a `val` cannot be declared before
     // pluginManagement, which Gradle requires to be the first block in the file.
     if (providers.gradleProperty("cucumberkmp.composite").getOrElse("true").toBoolean()) {
-        // Contributes both the Gradle plugin and the library artifacts, so no publishing is needed.
+        // Contributes the Gradle plugin. Note this does NOT substitute ordinary dependencies —
+        // that needs the top-level includeBuild below.
         includeBuild("../..")
     }
 
@@ -47,9 +55,18 @@ pluginManagement {
     }
 }
 
+// Substitutes cucumber-kmp-core, -annotations and -ksp with the live projects. A build included
+// under pluginManagement contributes plugins only, so this second inclusion is required and is not
+// a duplicate — Gradle resolves them to the same included build.
+if (providers.gradleProperty("cucumberkmp.composite").getOrElse("true").toBoolean()) {
+    includeBuild("../..")
+}
+
 dependencyResolutionManagement {
     repositories {
-        mavenLocal()
+        if (!providers.gradleProperty("cucumberkmp.composite").getOrElse("true").toBoolean()) {
+            mavenLocal()
+        }
         google()
         mavenCentral()
     }
