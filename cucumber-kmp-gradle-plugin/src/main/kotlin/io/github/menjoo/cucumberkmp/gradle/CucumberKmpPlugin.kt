@@ -86,6 +86,12 @@ public class CucumberKmpPlugin : Plugin<Project> {
                     }
                 }
             }
+
+            // Without this, generated tests only appear after a build, so a fresh IDE sync shows
+            // an empty test tree and unresolved references. `matching` keeps it a no-op if the
+            // Kotlin plugin ever stops registering the task.
+            target.tasks.matching { it.name == "prepareKotlinIdeaImport" }
+                .configureEach { it.dependsOn(generate) }
         }
     }
 

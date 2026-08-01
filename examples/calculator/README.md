@@ -8,14 +8,50 @@ each target's test source set and compile there.
 ## Run it
 
 ```bash
-# from the repository root
-./gradlew publishToMavenLocal
+# from the repository root — nothing to publish first
 ./gradlew -p examples/calculator build
 ```
 
 Six scenarios run on six targets: JVM, Android (host), macOS arm64, iOS simulator, JS/Node and
 Wasm/Node. `./gradlew -p examples/calculator linkDebugTestIosArm64` additionally proves it links
 for a physical iPhone.
+
+## Run it from an IDE
+
+**Open `examples/calculator` itself as the project**, not the repository root. The root build does
+not contain this example — it cannot, because the example applies a plugin the root build produces,
+and a build cannot include itself.
+
+Opening this directory gets you the whole repository anyway: `settings.gradle.kts` includes the
+root as a composite build, so IntelliJ shows the library sources too, and you can navigate,
+edit and set breakpoints in them from here. Library changes are picked up on the next build with no
+publishing step.
+
+After the first Gradle sync you can run scenarios from the gutter:
+
+- **A whole feature** — run `CalculatorFeatureTest` in `build/generated/cucumber/kotlin`.
+- **One scenario** — run its generated test function, for example `addingTwoNumbers`.
+- **Everything on one target** — run the `jvmTest` (or `macosArm64Test`, …) Gradle task.
+
+The generated tests exist as soon as the IDE syncs: the plugin hooks generation into
+`prepareKotlinIdeaImport`, so the test tree is populated without running a build first. If a
+generated class ever looks stale, re-run `generateCucumberTests` and re-sync.
+
+Two honest limitations:
+
+- You cannot run a scenario from the `.feature` file itself. That needs an IDE plugin, which does
+  not exist for cucumber-kmp — start from the generated test class instead.
+- Renaming a scenario renames its generated test function, so a saved IDE run configuration
+  pointing at the old name will stop resolving.
+
+## Two modes
+
+| Mode | Command | What it proves |
+|---|---|---|
+| Composite (default) | `./gradlew -p examples/calculator build` | Fast inner loop; library substituted from source |
+| Published | `./gradlew publishToMavenLocal` then the same with `-Pcucumberkmp.composite=false` | Real artifacts, so packaging and source-set wiring are exercised rather than substituted away |
+
+CI runs both: composite on JVM to catch substitution breaking, published across the full matrix.
 
 ## What it demonstrates
 

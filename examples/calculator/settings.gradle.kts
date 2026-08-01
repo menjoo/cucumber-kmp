@@ -1,12 +1,18 @@
 // A standalone build, deliberately not part of the main one.
 //
-// The point of this example is to consume cucumber-kmp exactly as a real project would —
-// resolving published artifacts rather than project dependencies — which is the only way to prove
-// the Gradle plugin registers its generated sources with each target's test source set.
+// It runs in two modes:
 //
-// Run it after `./gradlew publishToMavenLocal` in the repository root:
+//   composite (default)  includeBuild("../..") substitutes the cucumber-kmp artifacts with the
+//                        live projects. Nothing has to be published, edits to the library are
+//                        picked up immediately, and an IDE opening this directory can navigate
+//                        and debug straight into the library sources.
+//
+//   published            -Pcucumberkmp.composite=false resolves real artifacts from mavenLocal
+//                        instead. This is what CI runs, because substituting projects would hide
+//                        exactly the packaging and source-set wiring the example exists to check.
 //
 //     ./gradlew -p examples/calculator build
+//     ./gradlew publishToMavenLocal && ./gradlew -p examples/calculator build -Pcucumberkmp.composite=false
 
 pluginManagement {
     repositories {
@@ -15,6 +21,14 @@ pluginManagement {
         gradlePluginPortal()
         mavenCentral()
     }
+
+    // `providers` resolves to the enclosing Settings object; a `val` cannot be declared before
+    // pluginManagement, which Gradle requires to be the first block in the file.
+    if (providers.gradleProperty("cucumberkmp.composite").getOrElse("true").toBoolean()) {
+        // Contributes both the Gradle plugin and the library artifacts, so no publishing is needed.
+        includeBuild("../..")
+    }
+
     plugins {
         kotlin("multiplatform") version "2.4.10"
         id("com.android.kotlin.multiplatform.library") version "9.3.1"

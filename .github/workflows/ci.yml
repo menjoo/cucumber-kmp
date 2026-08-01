@@ -97,11 +97,20 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
           restore-keys: konan-${{ runner.os }}-
 
+      # The default mode for anyone working locally or in an IDE, so a break here breaks everyone's
+      # inner loop. JVM only — it exists to catch substitution breaking, not to re-run the matrix.
+      - name: Composite mode (library substituted from source)
+        run: ./gradlew -p examples/calculator jvmTest --stacktrace
+
       - name: Publish to mavenLocal
         run: ./gradlew publishToMavenLocal --stacktrace
 
-      - name: Build the example against them
-        run: ./gradlew -p examples/calculator build linkDebugTestIosArm64 --stacktrace
+      # The real verification: real artifacts, so packaging and source-set wiring are exercised
+      # rather than substituted away.
+      - name: Published mode (full matrix)
+        run: >-
+          ./gradlew -p examples/calculator build linkDebugTestIosArm64
+          -Pcucumberkmp.composite=false --stacktrace
 
       - name: Upload test reports
         if: ${{ !cancelled() }}
