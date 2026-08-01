@@ -1,5 +1,17 @@
 # cucumber-kmp
 
+[![CI](https://github.com/menjoo/cucumber-kmp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/menjoo/cucumber-kmp/actions/workflows/ci.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.menjoo.cucumberkmp/cucumber-kmp-core)](https://central.sonatype.com/artifact/io.github.menjoo.cucumberkmp/cucumber-kmp-core)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4.10-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+![JVM](https://img.shields.io/badge/JVM-supported-success)
+![Android](https://img.shields.io/badge/Android-supported-success)
+![iOS](https://img.shields.io/badge/iOS-supported-success)
+![macOS](https://img.shields.io/badge/macOS-supported-success)
+![JS](https://img.shields.io/badge/JS-supported-success)
+![Wasm](https://img.shields.io/badge/Wasm-supported-success)
+
 A Kotlin Multiplatform port of [Cucumber](https://cucumber.io). Gherkin `.feature` files run as
 real tests on the JVM, Android, iOS, macOS, JS and Wasm — with no runtime reflection, no classpath
 scanning and no runtime filesystem access.
@@ -7,10 +19,53 @@ scanning and no runtime filesystem access.
 The point is that non-developers keep writing plain-text `.feature` files in the repository, while
 the tests those files describe run natively on every target the app ships to.
 
-> **Status: works end to end, not yet released.** Feature files run on all six locally verifiable
-> targets, verified in [`examples/calculator`](examples/calculator) against published artifacts.
-> Nothing is on Maven Central yet. See [ARCHITECTURE.md](ARCHITECTURE.md) for the design and
-> roadmap.
+> **Status: early but usable.** Published to Maven Central and verified end to end on six targets.
+> The API may still change between 0.x releases. On-device Android and iOS runs, and the Cucumber
+> Compatibility Kit, are not done yet — see [ARCHITECTURE.md](ARCHITECTURE.md) for the roadmap.
+
+## Installation
+
+`settings.gradle.kts`:
+
+```kotlin
+pluginManagement {
+    repositories { mavenCentral(); gradlePluginPortal() }
+}
+```
+
+`build.gradle.kts`:
+
+```kotlin
+plugins {
+    kotlin("multiplatform")
+    id("com.google.devtools.ksp") version "2.3.10"
+    id("io.github.menjoo.cucumberkmp") version "0.1.1"
+}
+
+kotlin {
+    sourceSets {
+        commonTest.dependencies {
+            implementation("io.github.menjoo.cucumberkmp:cucumber-kmp-core:0.1.1")
+            implementation("io.github.menjoo.cucumberkmp:cucumber-kmp-annotations:0.1.1")
+        }
+    }
+}
+
+// KSP generates the step registry per target test compilation; it cannot generate into commonTest.
+listOf("kspJvmTest", "kspMacosArm64Test", "kspIosSimulatorArm64Test", "kspJsTest", "kspWasmJsTest")
+    .forEach { dependencies.add(it, "io.github.menjoo.cucumberkmp:cucumber-kmp-ksp:0.1.1") }
+
+ksp { arg("cucumberkmp.generatedPackage", "com.example.generated") }
+
+cucumberKmp {
+    stepRegistry.set("com.example.generated.generatedStepRegistry")
+}
+```
+
+Feature files go in `src/commonTest/resources/features`. See
+[`examples/calculator`](examples/calculator) for a complete, working project.
+
+Only `cucumber-kmp-core` is needed if you use the `steps { }` DSL rather than annotations.
 
 ## How it looks
 

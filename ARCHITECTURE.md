@@ -4,10 +4,10 @@
 > code lands — the roadmap in §12 marks what is done, and anything that turned out differently in
 > practice is corrected here rather than left as an aspiration.
 >
-> Status: **Phases 0–3 complete — the core promise works.** A `.feature` file dropped into a
-> project produces one test per scenario, running on all six Tier A targets, with step definitions
-> found by KSP and no runtime reflection anywhere. Verified end to end in `examples/calculator`,
-> which consumes published artifacts like any other project would.
+> Status: **Released. Phases 0–3 and 7 complete — the core promise works and is public.** A
+> `.feature` file dropped into a project produces one test per scenario, running on all six Tier A
+> targets, with step definitions found by KSP and no runtime reflection anywhere. **0.1.1 is on
+> Maven Central**, resolvable with `mavenCentral()` and no token.
 >
 > Next: on-device verification (Phase 5) and Cucumber Messages plus the Compatibility Kit
 > (Phase 6).
@@ -424,7 +424,7 @@ source locations and result data those formats need, so this is additive.
 | 4 | Gherkin completeness (outlines, tables, doc strings, tags, rules, i18n) | The official "good" corpus parses; the "bad" corpus fails with the expected line numbers |
 | 5 | **On-device verification** — Android instrumented tests, then the iOS XCTest host app | `connectedDebugAndroidTest` green on a device/AVD; `xcodebuild test` green on the iPhone 13; regex conformance confirmed on ART |
 | 6 | Cucumber Messages output + Compatibility Kit | CCK scenarios pass on JVM; documented gaps elsewhere |
-| 7 | Publishing to Maven Central, docs site | A third party can add the plugin and run a feature file |
+| 7 | Publishing to Maven Central | ✅ 0.1.1 on Central, resolvable with `mavenCentral()` and no token; a docs site is still outstanding |
 
 **Phase 1 has no dependency on KSP or Gradle plumbing** and should be built and tested first —
 it is where the actual risk lives, it is verifiable with plain `kotlin.test`, and the upstream
@@ -533,7 +533,7 @@ Matching the upstream Cucumber projects this is ported from. `LICENSE` holds the
 not merely referenced, so they are attributed per project with a pointer to the generated file.
 Every generated file also names the upstream commit it came from.
 
-### Publishing: GitHub Packages, and Maven Central once its secrets exist
+### Publishing: Maven Central and GitHub Packages ✅
 
 Releases are **manual only** — `release.yml`, run from the Actions tab. Merging to `main` publishes
 nothing, and there is no snapshot channel. The workflow never writes to `main`: the version bump is
@@ -547,12 +547,19 @@ name, description, url, MIT licence, developer and SCM, plus sources and (empty)
 uploads the publications `maven-publish` already produces rather than defining its own, so the POM,
 signing and KMP variants configured here keep working untouched.
 
-The `io.github.menjoo` namespace is verified. What remains is two pairs of repository secrets — a
-Central Portal user token and a GPG signing key — after which the release workflow uploads to
-Central as well as GitHub Packages. Until they exist it skips Central silently, so the workflow
-needs no edit either side of the setup. Uploads are `USER_MANAGED`: a release is staged in the
-Portal for review rather than published outright, because a Central release is permanent. See
-[RELEASING.md](RELEASING.md).
+The `io.github.menjoo` namespace is verified and the Portal token and signing key are configured,
+so releases reach Central. **0.1.1 is published** and resolvable with `mavenCentral()` alone —
+verified by building a throwaway consumer with `FAIL_ON_PROJECT_REPOS` and no token.
+
+Uploads are `USER_MANAGED`: a release is staged in the Portal for review rather than published
+outright, because a Central release is permanent. The workflow still skips Central silently if the
+secrets are ever absent. See [RELEASING.md](RELEASING.md).
+
+**0.1.0 does not exist on Central.** It was tagged and pushed to GitHub Packages, then rejected
+during Central validation because the two JVM-only modules lacked sources, javadoc, signatures and
+POM metadata — publishing config lived in the multiplatform convention plugin only. Fixed by
+extracting `cucumberkmp.publishing`, and the release workflow now applies Central's rules *before*
+tagging so the same failure would land in the reversible half. The `v0.1.0` tag remains as a record.
 
 ### Group and package name
 
