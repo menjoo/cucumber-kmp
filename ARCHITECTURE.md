@@ -413,7 +413,7 @@ source locations and result data those formats need, so this is additive.
 |---|---|---|
 | 0 | Gradle skeleton, version catalog, convention plugins (incl. AGP) | ✅ `./gradlew build` green: 6 Tier A targets each running the same tests, `iosArm64` link-checked |
 | 0b | **CI on GitHub Actions** | ✅ PRs gated on the Tier A matrix + `linkDebugTestIosArm64`, Gradle and Konan cached, browser tests in their own job, plus a scheduled upstream-drift check |
-| 0c | **CD on GitHub Actions** | ✅ manual `Release` workflow: verify, tag, publish to GitHub Packages, open the next snapshot; Maven Central needs the Sonatype setup in §15 |
+| 0c | **CD on GitHub Actions** | ✅ manual `Release` workflow: verify, tag, publish to GitHub Packages and Maven Central; never writes to `main` |
 | 1a | AST + Gherkin parser + upstream parser corpus | ✅ all 50 parseable and 12 failing fixtures match upstream exactly, on every Tier A target |
 | 1b | Cucumber Expressions | ✅ all 120 upstream fixtures pass on every Tier A target, exception messages byte-identical |
 | 1c | Tag expressions | ✅ all 64 upstream fixtures pass on every Tier A target |
@@ -533,7 +533,7 @@ Matching the upstream Cucumber projects this is ported from. `LICENSE` holds the
 not merely referenced, so they are attributed per project with a pointer to the generated file.
 Every generated file also names the upstream commit it came from.
 
-### Publishing: GitHub Packages now, Maven Central later
+### Publishing: GitHub Packages, and Maven Central once its secrets exist
 
 Releases are **manual only** — `release.yml`, run from the Actions tab. Merging to `main` publishes
 nothing, and there is no snapshot channel. The workflow never writes to `main`: the version bump is
@@ -542,15 +542,17 @@ protected and letting CI bypass that would defeat it. See [RELEASING.md](RELEASI
 sequence, the reasoning and the recovery procedure. Artifacts carry a Central-compliant POM already:
 name, description, url, MIT licence, developer and SCM, plus sources and (empty) javadoc jars.
 
-**To add Maven Central**, three things are needed that cannot be done from this repository:
+**Maven Central is wired** via the [nmcp](https://gradleup.com/nmcp/) plugin, applied in
+`settings.gradle.kts`. Sonatype publishes no official Gradle plugin for the Central Portal; nmcp
+uploads the publications `maven-publish` already produces rather than defining its own, so the POM,
+signing and KMP variants configured here keep working untouched.
 
-1. A verified `io.github.menjoo` namespace on Sonatype — proven by creating a repository whose name
-   is the code Sonatype gives you.
-2. A GPG key, exported armoured, as the `SIGNING_KEY` secret with its passphrase as
-   `SIGNING_PASSWORD`. Signing is already wired and activates when `SIGNING_KEY` is present;
-   GitHub Packages ignores signatures, Central requires them.
-3. A Central repository added to `publishing.repositories` in the convention plugin, with its
-   credentials as secrets.
+The `io.github.menjoo` namespace is verified. What remains is two pairs of repository secrets — a
+Central Portal user token and a GPG signing key — after which the release workflow uploads to
+Central as well as GitHub Packages. Until they exist it skips Central silently, so the workflow
+needs no edit either side of the setup. Uploads are `USER_MANAGED`: a release is staged in the
+Portal for review rather than published outright, because a Central release is permanent. See
+[RELEASING.md](RELEASING.md).
 
 ### Group and package name
 
