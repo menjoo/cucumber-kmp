@@ -413,7 +413,7 @@ source locations and result data those formats need, so this is additive.
 |---|---|---|
 | 0 | Gradle skeleton, version catalog, convention plugins (incl. AGP) | ✅ `./gradlew build` green: 6 Tier A targets each running the same tests, `iosArm64` link-checked |
 | 0b | **CI on GitHub Actions** | ✅ PRs gated on the Tier A matrix + `linkDebugTestIosArm64`, Gradle and Konan cached, browser tests in their own job, plus a scheduled upstream-drift check |
-| 0c | **CD on GitHub Actions** | ✅ snapshots from `main`, releases on a `v*` tag, to GitHub Packages; Maven Central needs the Sonatype setup in §15 |
+| 0c | **CD on GitHub Actions** | ✅ manual `Release` workflow: verify, tag, publish to GitHub Packages, open the next snapshot; Maven Central needs the Sonatype setup in §15 |
 | 1a | AST + Gherkin parser + upstream parser corpus | ✅ all 50 parseable and 12 failing fixtures match upstream exactly, on every Tier A target |
 | 1b | Cucumber Expressions | ✅ all 120 upstream fixtures pass on every Tier A target, exception messages byte-identical |
 | 1c | Tag expressions | ✅ all 64 upstream fixtures pass on every Tier A target |
@@ -535,8 +535,9 @@ Every generated file also names the upstream commit it came from.
 
 ### Publishing: GitHub Packages now, Maven Central later
 
-`publish.yml` pushes snapshots from `main` and releases from a `v*` tag to GitHub Packages, which
-needs nothing beyond the automatic `GITHUB_TOKEN`. Artifacts carry a Central-compliant POM already:
+Releases are **manual only** — `release.yml`, run from the Actions tab with a version as input.
+Merging to `main` publishes nothing, and there is no snapshot channel. See [RELEASING.md](RELEASING.md)
+for the reasoning and the recovery procedure. Artifacts carry a Central-compliant POM already:
 name, description, url, MIT licence, developer and SCM, plus sources and (empty) javadoc jars.
 
 **To add Maven Central**, three things are needed that cannot be done from this repository:
@@ -557,9 +558,9 @@ settle it before the first release rather than after.
 
 ### Versioning
 
-The build declares `0.1.0-SNAPSHOT`. A release overrides it with `-Pcucumberkmp.version=<x.y.z>`,
-which `publish.yml` derives from the tag. Nothing reads the version from git, so a tag is the single
-source of truth for what a release is called.
+`cucumberkmp.version` in `gradle.properties` is the single source of truth, read by every published
+module and by `examples/calculator`. The release workflow rewrites it, tags the commit, publishes,
+then opens the next `-SNAPSHOT`. Override it for one invocation with `-Pcucumberkmp.version=1.2.3`.
 
 ## 16. Read before writing Phase 1
 

@@ -66,6 +66,12 @@ Two honest limitations:
 
 CI runs both: composite on JVM to catch substitution breaking, published across the full matrix.
 
+Switching between the two modes, or changing the library version, in the same build directory can
+leave Kotlin's incremental compilation cache holding klibs from the previous resolution. It fails
+with something unhelpful like `NoSuchElementException: Key ic#… is missing in the map`. Run
+`./gradlew clean` in this directory and build again. CI never sees it, since every run starts from
+a fresh checkout.
+
 ## What it demonstrates
 
 | File | Role |

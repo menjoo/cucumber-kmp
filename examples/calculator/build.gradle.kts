@@ -7,7 +7,13 @@ plugins {
     id("io.github.menjoo.cucumberkmp")
 }
 
-val cucumberKmpVersion = "0.1.0-SNAPSHOT"
+// Same source of truth as the library itself, so this example cannot drift out of date.
+val cucumberKmpVersion: String = rootDir
+    .resolve("../../gradle.properties")
+    .readLines()
+    .first { it.startsWith("cucumberkmp.version=") }
+    .substringAfter('=')
+    .trim()
 
 kotlin {
     jvmToolchain(21)

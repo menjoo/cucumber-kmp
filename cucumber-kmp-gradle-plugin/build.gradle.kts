@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.menjoo.cucumberkmp"
-version = providers.gradleProperty("cucumberkmp.version").getOrElse("0.1.0-SNAPSHOT")
+version = providers.gradleProperty("cucumberkmp.version").get()
 
 kotlin {
     explicitApi()

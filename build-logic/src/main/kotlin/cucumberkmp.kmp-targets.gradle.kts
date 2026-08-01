@@ -20,8 +20,8 @@ plugins {
 
 group = "io.github.menjoo.cucumberkmp"
 
-// Releases pass -Pcucumberkmp.version=<tag without the leading v>; everything else is a snapshot.
-version = providers.gradleProperty("cucumberkmp.version").getOrElse("0.1.0-SNAPSHOT")
+// Read from gradle.properties, which the release workflow rewrites. See RELEASING.md.
+version = providers.gradleProperty("cucumberkmp.version").get()
 
 // Browser tests need Chrome resolvable by Karma. Off by default to keep `check` fast locally;
 // CI opts in with -Pcucumberkmp.browserTests.
