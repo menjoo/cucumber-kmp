@@ -535,9 +535,11 @@ Every generated file also names the upstream commit it came from.
 
 ### Publishing: GitHub Packages now, Maven Central later
 
-Releases are **manual only** — `release.yml`, run from the Actions tab with a version as input.
-Merging to `main` publishes nothing, and there is no snapshot channel. See [RELEASING.md](RELEASING.md)
-for the reasoning and the recovery procedure. Artifacts carry a Central-compliant POM already:
+Releases are **manual only** — `release.yml`, run from the Actions tab. Merging to `main` publishes
+nothing, and there is no snapshot channel. The workflow never writes to `main`: the version bump is
+an ordinary pull request and the workflow only publishes and pushes a tag, because `main` is
+protected and letting CI bypass that would defeat it. See [RELEASING.md](RELEASING.md) for the
+sequence, the reasoning and the recovery procedure. Artifacts carry a Central-compliant POM already:
 name, description, url, MIT licence, developer and SCM, plus sources and (empty) javadoc jars.
 
 **To add Maven Central**, three things are needed that cannot be done from this repository:
@@ -559,8 +561,9 @@ settle it before the first release rather than after.
 ### Versioning
 
 `cucumberkmp.version` in `gradle.properties` is the single source of truth, read by every published
-module and by `examples/calculator`. The release workflow rewrites it, tags the commit, publishes,
-then opens the next `-SNAPSHOT`. Override it for one invocation with `-Pcucumberkmp.version=1.2.3`.
+module and by `examples/calculator`. It is changed by pull request; the release workflow only reads
+it, and refuses to run unless the version it was asked for matches. Override it for one invocation
+with `-Pcucumberkmp.version=1.2.3`.
 
 ## 16. Read before writing Phase 1
 

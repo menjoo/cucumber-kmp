@@ -1,26 +1,28 @@
 name: Release
 
-# Manual only. Nothing is published by merging to main — a merge cannot know whether it is a patch
-# or a major, so deciding that is an explicit act. See RELEASING.md.
+# Manual only, and it never writes to main.
+#
+# `main` is a protected branch requiring pull requests, and CI writing to it would defeat that.
+# So the version bump happens in an ordinary pull request and this workflow only reads the result,
+# publishes it, and pushes a tag — tags are not covered by the branch ruleset, so no bypass actor
+# and no long-lived token are needed.
+#
+# See RELEASING.md for the full sequence.
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release, without a leading v (for example 1.0.0)'
+        description: 'The version to release. Must already match gradle.properties on main.'
         required: true
-        type: string
-      nextVersion:
-        description: 'Next development version, without -SNAPSHOT (default: bump the patch)'
-        required: false
         type: string
 
 concurrency:
-  # Two releases racing would fight over the version in gradle.properties.
   group: release
   cancel-in-progress: false
 
 permissions:
+  # Enough to push a tag. Notably not enough to push to main, which the ruleset blocks anyway.
   contents: write
   packages: write
 
@@ -35,20 +37,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Tags are needed to check the version has not already been released.
+          # Tags are needed to check this version has not already been released.
           fetch-depth: 0
 
-      - name: Validate the requested version
+      # The input is a confirmation, not the source of truth. Requiring it to match the committed
+      # version makes it impossible to release "whatever happened to be on main" by accident.
+      - name: Check the version
         run: |
-          version='${{ inputs.version }}'
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::'$version' is not a semantic version. Do not include a leading 'v'."
+          committed=$(.github/scripts/get-version.sh)
+          requested='${{ inputs.version }}'
+
+          if [[ "$committed" != "$requested" ]]; then
+            echo "::error::You asked for $requested but main is on $committed."
+            echo "::error::Merge a pull request setting cucumberkmp.version=$requested first."
             exit 1
           fi
-          if git rev-parse "v$version" >/dev/null 2>&1; then
-            echo "::error::Tag v$version already exists. Published versions are immutable."
+          if [[ "$committed" == *-SNAPSHOT ]]; then
+            echo "::error::$committed is a development version. Release a fixed version instead."
             exit 1
           fi
+          if [[ ! "$committed" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$committed' is not a semantic version."
+            exit 1
+          fi
+          if git rev-parse "v$committed" >/dev/null 2>&1; then
+            echo "::error::Tag v$committed already exists. Published versions are immutable."
+            exit 1
+          fi
+          echo "Releasing $committed from $(git rev-parse --short HEAD)"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -69,34 +85,24 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
           restore-keys: konan-${{ runner.os }}-
 
-      # Set the version before building so every artifact, POM and test runs against the exact
-      # version being released rather than the snapshot.
-      - name: Set the release version
-        run: |
-          ./.github/scripts/set-version.sh '${{ inputs.version }}'
-          grep '^cucumberkmp.version=' gradle.properties
-
       - name: Verify
         run: ./gradlew build --stacktrace
 
       # Builds the example against the very artifacts about to be published, rather than against
-      # substituted projects. This is the last chance to catch a packaging or source-set problem
-      # before the version becomes immutable.
+      # substituted projects. The last chance to catch a packaging or source-set problem before
+      # the version becomes immutable.
       - name: Verify the artifacts a consumer would get
         run: |
           ./gradlew publishToMavenLocal --stacktrace
           ./gradlew -p examples/calculator build -Pcucumberkmp.composite=false --stacktrace
 
-      # Commit and tag BEFORE publishing. Publishing is the irreversible half: an artifact with no
-      # tag cannot be undone, whereas a tag with no artifact is deleted and retried.
-      - name: Commit and tag
+      # Tag BEFORE publishing. Publishing is the irreversible half: an artifact with no tag cannot
+      # be undone, whereas a tag with no artifact is deleted and retried.
+      - name: Tag the release
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add gradle.properties
-          git commit -m 'Release ${{ inputs.version }}'
           git tag -a 'v${{ inputs.version }}' -m 'Release ${{ inputs.version }}'
-          git push origin HEAD:main
           git push origin 'v${{ inputs.version }}'
 
       - name: Publish to GitHub Packages
@@ -109,17 +115,20 @@ jobs:
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: ./gradlew publishAllPublicationsToGitHubPackagesRepository --stacktrace
 
-      - name: Open the next development version
+      - name: Summarise
         run: |
-          next='${{ inputs.nextVersion }}'
-          if [[ -z "$next" ]]; then
-            next=$(./.github/scripts/next-patch.sh '${{ inputs.version }}')
-          fi
-          ./.github/scripts/set-version.sh "$next-SNAPSHOT"
-          git add gradle.properties
-          git commit -m "Open $next-SNAPSHOT for development"
-          git push origin HEAD:main
-          echo "::notice::Released ${{ inputs.version }}; main is now on $next-SNAPSHOT"
+          next=$(.github/scripts/next-patch.sh '${{ inputs.version }}')
+          {
+            echo "### Released ${{ inputs.version }}"
+            echo
+            echo "Tagged \`v${{ inputs.version }}\` and published to GitHub Packages."
+            echo
+            echo "**Next:** open a pull request setting \`cucumberkmp.version=$next-SNAPSHOT\`:"
+            echo
+            echo '```bash'
+            echo ".github/scripts/set-version.sh $next-SNAPSHOT"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test reports
         if: ${{ !cancelled() }}
