@@ -105,6 +105,26 @@ jobs:
           git tag -a 'v${{ inputs.version }}' -m 'Release ${{ inputs.version }}'
           git push origin 'v${{ inputs.version }}'
 
+      # Maven Central is skipped until its secrets exist, so the workflow works before and after
+      # the Sonatype setup without being edited. Signing is checked here rather than being left to
+      # fail deep inside the upload, where the message is far less obvious.
+      - name: Check Maven Central configuration
+        id: central
+        env:
+          CENTRAL_PORTAL_USERNAME: ${{ secrets.CENTRAL_PORTAL_USERNAME }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: |
+          if [[ -z "$CENTRAL_PORTAL_USERNAME" ]]; then
+            echo "::notice::CENTRAL_PORTAL_USERNAME is not set — publishing to GitHub Packages only."
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ -z "$SIGNING_KEY" ]]; then
+            echo "::error::Maven Central requires signed artifacts, but SIGNING_KEY is not set."
+            exit 1
+          fi
+          echo 'configured=true' >> "$GITHUB_OUTPUT"
+
       - name: Publish to GitHub Packages
         env:
           GITHUB_ACTOR: ${{ github.actor }}
@@ -115,6 +135,17 @@ jobs:
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: ./gradlew publishAllPublicationsToGitHubPackagesRepository --stacktrace
 
+      # Uploads every module's publications as one deployment. With the default USER_MANAGED type
+      # it is staged in the Portal for a human to release, not published outright.
+      - name: Publish to Maven Central
+        if: ${{ steps.central.outputs.configured == 'true' }}
+        env:
+          CENTRAL_PORTAL_USERNAME: ${{ secrets.CENTRAL_PORTAL_USERNAME }}
+          CENTRAL_PORTAL_PASSWORD: ${{ secrets.CENTRAL_PORTAL_PASSWORD }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: ./gradlew publishAggregationToCentralPortal --stacktrace
+
       - name: Summarise
         run: |
           next=$(.github/scripts/next-patch.sh '${{ inputs.version }}')
@@ -122,6 +153,11 @@ jobs:
             echo "### Released ${{ inputs.version }}"
             echo
             echo "Tagged \`v${{ inputs.version }}\` and published to GitHub Packages."
+            if [[ '${{ steps.central.outputs.configured }}' == 'true' ]]; then
+              echo
+              echo "Uploaded to Maven Central as a **staged deployment**. It is not public yet —"
+              echo "review and release it at <https://central.sonatype.com/publishing/deployments>."
+            fi
             echo
             echo "**Next:** open a pull request setting \`cucumberkmp.version=$next-SNAPSHOT\`:"
             echo
