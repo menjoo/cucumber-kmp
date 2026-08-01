@@ -54,6 +54,8 @@ git commit -am 'Open 1.0.1-SNAPSHOT for development'
    `.jar`/`.pom`/`.module`, and the six required POM elements.
 6. **Tag** and push the tag.
 7. **Publish** to GitHub Packages, then to Maven Central.
+8. **Create the GitHub release** — last, so a release only appears once the artifacts behind it
+   exist. Notes are the install snippet plus GitHub's auto-generated "What's Changed".
 
 Steps 6 and 7 are in that order deliberately. Publishing is the irreversible half — a Central
 artifact cannot be deleted — so a published artifact with no tag is a permanent inconsistency. A tag
@@ -79,6 +81,7 @@ Run it yourself any time:
 | Steps 1–5 | Nothing tagged, nothing published | Fix and re-run. |
 | Step 6 (tag) | Nothing published | Re-run. |
 | Step 7 (publish) | Tagged but not published | Delete the tag, fix, run again: `git push --delete origin v1.0.0`. Note GitHub Packages may already hold the version, and re-publishing a deleted Packages version can be refused — releasing the next patch is usually safer than reusing the number. |
+| Step 8 (GitHub release) | Published, but no release entry | Nothing is wrong with the artifacts. Create it by hand: `gh release create v1.0.0 --generate-notes` |
 
 ## Why not one button
 

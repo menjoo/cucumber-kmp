@@ -1,5 +1,10 @@
 name: Release
 
+# Puts the version in the run's title, so the Actions list reads "Release 0.1.2" rather than a
+# column of identical "Release" entries you have to open to tell apart. The job-level `name:`
+# below does not do this — it only labels the job inside a run.
+run-name: Release ${{ inputs.version }}
+
 # Manual only, and it never writes to main.
 #
 # `main` is a protected branch requiring pull requests, and CI writing to it would defeat that.
@@ -154,13 +159,46 @@ jobs:
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: ./gradlew publishAggregationToCentralPortal --stacktrace
 
+      # Last, so a release only appears once the artifacts behind it exist. --verify-tag refuses if
+      # the tag somehow is not on the remote, which would otherwise create a release pointing at
+      # nothing.
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          notes=$(mktemp)
+          {
+            echo '## Install'
+            echo
+            echo '```kotlin'
+            echo 'implementation("io.github.menjoo.cucumberkmp:cucumber-kmp-core:${{ inputs.version }}")'
+            echo '```'
+            echo
+            if [[ '${{ steps.central.outputs.configured }}' == 'true' ]]; then
+              echo 'Published to [Maven Central](https://central.sonatype.com/artifact/io.github.menjoo.cucumberkmp/cucumber-kmp-core/${{ inputs.version }}) and GitHub Packages.'
+              echo
+              echo 'Central deployments are staged for review, so this may take a few minutes to'
+              echo 'become resolvable after the deployment is released in the Portal.'
+            else
+              echo 'Published to GitHub Packages.'
+            fi
+          } > "$notes"
+
+          # --generate-notes appends the auto-generated "What's Changed" section after this body.
+          gh release create 'v${{ inputs.version }}' \
+            --title '${{ inputs.version }}' \
+            --notes-file "$notes" \
+            --generate-notes \
+            --verify-tag
+
       - name: Summarise
         run: |
           next=$(.github/scripts/next-patch.sh '${{ inputs.version }}')
           {
             echo "### Released ${{ inputs.version }}"
             echo
-            echo "Tagged \`v${{ inputs.version }}\` and published to GitHub Packages."
+            echo "Tagged \`v${{ inputs.version }}\`, published to GitHub Packages, and created"
+            echo "[the GitHub release](${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ inputs.version }})."
             if [[ '${{ steps.central.outputs.configured }}' == 'true' ]]; then
               echo
               echo "Uploaded to Maven Central as a **staged deployment**. It is not public yet —"
