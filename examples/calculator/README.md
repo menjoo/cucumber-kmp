@@ -27,6 +27,19 @@ root as a composite build, so IntelliJ shows the library sources too, and you ca
 edit and set breakpoints in them from here. Library changes are picked up on the next build with no
 publishing step.
 
+Two things this directory carries so an IDE can build it on its own:
+
+- **Its own Gradle wrapper**, pinned to the same version as the repository root. Without it the IDE
+  falls back to whatever Gradle it bundles, which is currently older than AGP's minimum and fails
+  the sync with `Minimum supported Gradle version is 9.5.0`. Point the IDE's Gradle setting at the
+  wrapper, which is the default.
+- **Its own `gradle.properties`**, raising heap and metaspace. The Kotlin/Native compiler runs
+  inside the daemons and exhausts the JVM defaults while linking several Native targets, failing
+  with a bare `Metaspace` that explains nothing. Any KMP project with Native targets needs this.
+
+The Android target also needs an SDK location — `ANDROID_HOME`, or a `local.properties` with
+`sdk.dir`. Android Studio writes one on first sync; plain IntelliJ may not.
+
 After the first Gradle sync you can run scenarios from the gutter:
 
 - **A whole feature** — run `CalculatorFeatureTest` in `build/generated/cucumber/kotlin`.
