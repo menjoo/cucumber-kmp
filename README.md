@@ -39,21 +39,21 @@ pluginManagement {
 plugins {
     kotlin("multiplatform")
     id("com.google.devtools.ksp") version "2.3.10"
-    id("io.github.menjoo.cucumberkmp") version "0.1.1"
+    id("io.github.menjoo.cucumberkmp") version "0.1.2"
 }
 
 kotlin {
     sourceSets {
         commonTest.dependencies {
-            implementation("io.github.menjoo.cucumberkmp:cucumber-kmp-core:0.1.1")
-            implementation("io.github.menjoo.cucumberkmp:cucumber-kmp-annotations:0.1.1")
+            implementation("io.github.menjoo.cucumberkmp:cucumber-kmp-core:0.1.2")
+            implementation("io.github.menjoo.cucumberkmp:cucumber-kmp-annotations:0.1.2")
         }
     }
 }
 
 // KSP generates the step registry per target test compilation; it cannot generate into commonTest.
 listOf("kspJvmTest", "kspMacosArm64Test", "kspIosSimulatorArm64Test", "kspJsTest", "kspWasmJsTest")
-    .forEach { dependencies.add(it, "io.github.menjoo.cucumberkmp:cucumber-kmp-ksp:0.1.1") }
+    .forEach { dependencies.add(it, "io.github.menjoo.cucumberkmp:cucumber-kmp-ksp:0.1.2") }
 
 ksp { arg("cucumberkmp.generatedPackage", "com.example.generated") }
 
