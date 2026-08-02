@@ -224,11 +224,9 @@ jobs:
               echo "review and release it at <https://central.sonatype.com/publishing/deployments>."
             fi
             echo
-            echo "**Next:** open a pull request setting \`cucumberkmp.version=$next-SNAPSHOT\`:"
-            echo
-            echo '```bash'
-            echo ".github/scripts/set-version.sh $next-SNAPSHOT"
-            echo '```'
+            echo "**Next:** run [Post-release]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/post-release.yml)"
+            echo "with \`$VERSION\`. It points the install snippets at $VERSION, opens"
+            echo "$next-SNAPSHOT, and pushes a branch for you to raise a pull request from."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test reports
