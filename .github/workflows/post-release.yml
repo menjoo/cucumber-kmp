@@ -1,0 +1,119 @@
+name: Post-release
+
+run-name: Post-release for ${{ inputs.version }}
+
+# The third step of RELEASING.md, done for you: point the install snippets at the version that was
+# just released, and open the next development version.
+#
+# It pushes a branch and stops there. It deliberately does NOT open the pull request, because a
+# pull request opened with GITHUB_TOKEN does not trigger workflow runs — GitHub blocks that to
+# prevent recursion — and `main` requires CI to pass. A bot-opened pull request would sit
+# permanently unable to satisfy its own required checks. Opening it yourself takes one click and
+# makes CI run normally, so that is the one part left manual.
+#
+# Using a personal access token instead would work and is not worth it: see RELEASING.md, "Why not
+# one button", for why this repository does not keep a long-lived credential around.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The version that was just released. Must already be tagged.'
+        required: true
+        type: string
+
+concurrency:
+  group: post-release
+  cancel-in-progress: false
+
+permissions:
+  # Enough to push a branch. Not enough to push to main, which the ruleset blocks anyway.
+  contents: write
+
+jobs:
+  prepare:
+    name: Prepare the post-release pull request
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Tags are needed to confirm the version really was released.
+          fetch-depth: 0
+
+      # Same rule as the release workflow: inputs reach bash through the environment, never through
+      # a ${{ }} inside a run block, so a crafted input cannot become shell source.
+      - name: Check the version was released
+        id: check
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$VERSION' is not a semantic version."
+            exit 1
+          fi
+          # The documentation points at what consumers can resolve. If the tag is missing the
+          # release did not happen, and pointing at it would send people to a 404.
+          if ! git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag v$VERSION does not exist. Run the Release workflow first."
+            exit 1
+          fi
+
+          branch="post-$VERSION"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "::error::Branch $branch already exists. Delete it or finish its pull request."
+            exit 1
+          fi
+
+          next=$(.github/scripts/next-patch.sh "$VERSION")
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Rewrite the versions
+        env:
+          VERSION: ${{ inputs.version }}
+          NEXT: ${{ steps.check.outputs.next }}
+        run: |
+          # Install snippets point at the release that just happened...
+          .github/scripts/set-docs-version.py "$VERSION"
+          # ...while the build moves on to the next development version.
+          .github/scripts/set-version.sh "$NEXT-SNAPSHOT"
+
+      - name: Push the branch
+        id: push
+        env:
+          VERSION: ${{ inputs.version }}
+          NEXT: ${{ steps.check.outputs.next }}
+          BRANCH: ${{ steps.check.outputs.branch }}
+        run: |
+          if git diff --quiet; then
+            echo "::error::Nothing changed — the docs already point at $VERSION."
+            exit 1
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$BRANCH"
+          git commit -am "Document the $VERSION release and open $NEXT-SNAPSHOT"
+          git push origin "$BRANCH"
+
+      - name: Summarise
+        env:
+          VERSION: ${{ inputs.version }}
+          NEXT: ${{ steps.check.outputs.next }}
+          BRANCH: ${{ steps.check.outputs.branch }}
+        run: |
+          compare="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$BRANCH?expand=1"
+          {
+            echo "### Post-release for $VERSION is ready"
+            echo
+            echo "Pushed \`$BRANCH\`: install snippets now say $VERSION, the build is on"
+            echo "$NEXT-SNAPSHOT."
+            echo
+            echo "**[Open the pull request]($compare)** — one click. It is left to you on purpose:"
+            echo "a pull request opened by CI does not trigger CI, so the required checks could"
+            echo "never pass on it."
+            echo
+            echo "\`ARCHITECTURE.md\` is prose and was not touched. Its status lines still say the"
+            echo "old version — edit them on this branch before merging."
+          } >> "$GITHUB_STEP_SUMMARY"

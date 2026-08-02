@@ -34,14 +34,29 @@ The job runs in the `release` environment, so it waits for a deployment approval
 That approval is what releases the signing key and the Central Portal credentials to the run —
 they are environment secrets, not repository secrets, so no other workflow can reach them.
 
-### 3. Open a pull request for the next development version
+### 3. Run the Post-release workflow
 
-The workflow's summary prints the command. By default:
+Actions → **Post-release** → *Run workflow*, entering the version you just released.
+
+It points the README's install snippets at that version, sets the build to the next
+`-SNAPSHOT`, and pushes a `post-<version>` branch. Its summary links straight to the
+*Open a pull request* page — one click.
+
+Opening that pull request is left to you deliberately. A pull request opened with `GITHUB_TOKEN`
+does not trigger workflow runs, so its required checks could never pass; opening it yourself makes
+CI run normally. A personal access token would avoid the click at the cost of a long-lived
+credential, which is the same trade this repository declines below.
+
+`ARCHITECTURE.md` is not rewritten. Its version references are prose — "0.1.0 does not exist on
+Central", "the `v0.1.0` tag remains as a record" — and a substitution blunt enough to update the
+status lines would also erase that history. Edit them by hand on the branch before merging.
+
+The same rewrite is runnable locally:
 
 ```bash
-git switch -c open-1.0.1-snapshot
-.github/scripts/set-version.sh 1.0.1-SNAPSHOT
-git commit -am 'Open 1.0.1-SNAPSHOT for development'
+.github/scripts/set-docs-version.py 1.0.0          # install snippets -> the released version
+.github/scripts/set-docs-version.py 1.0.0 --check  # report only, exit 1 if anything would change
+.github/scripts/set-version.sh 1.0.1-SNAPSHOT      # the build moves on
 ```
 
 ## What the workflow does, and why in that order
@@ -113,9 +128,10 @@ rather than hardcoding a version it would forget to update. Override it for one 
 The scripts the workflow uses are runnable locally:
 
 ```bash
-.github/scripts/get-version.sh           # prints the current version
-.github/scripts/set-version.sh 1.0.0     # rewrites gradle.properties
-.github/scripts/next-patch.sh 1.0.0      # prints 1.0.1
+.github/scripts/get-version.sh            # prints the current version
+.github/scripts/set-version.sh 1.0.0      # rewrites gradle.properties
+.github/scripts/next-patch.sh 1.0.0       # prints 1.0.1
+.github/scripts/set-docs-version.py 1.0.0 # rewrites the README's install snippets
 ```
 
 ## Where releases go
