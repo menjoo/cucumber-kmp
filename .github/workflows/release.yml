@@ -79,6 +79,31 @@ jobs:
             echo "::error::Tag v$committed already exists. Published versions are immutable."
             exit 1
           fi
+
+          # Refuse to go backwards. Nothing above catches it: 0.0.9 after 0.1.1 is valid semver,
+          # is not a snapshot, and has no tag, so every other check here passes it happily — and
+          # publishing is the irreversible half.
+          #
+          # Only the numeric core is compared, and only for "not older" rather than "strictly
+          # newer". Both are deliberate. Full semver precedence puts 1.0.0-rc1 *before* 1.0.0,
+          # which `sort -V` gets wrong and which is more machinery than this is worth; and
+          # comparing cores loosely is what lets 1.0.0 follow 1.0.0-rc1, since an exact repeat is
+          # already refused by the tag check above.
+          #
+          # Field-wise numeric sort rather than `sort -V`: portable across GNU and BSD.
+          core () { printf '%s\n' "${1%%-*}"; }
+          highest () { sort -t. -k1,1n -k2,2n -k3,3n | tail -1; }
+
+          released=$(git tag --list 'v[0-9]*' | sed 's/^v//' | while read -r tag; do core "$tag"; done | highest)
+          if [[ -n "$released" ]]; then
+            newest=$(printf '%s\n%s\n' "$released" "$(core "$committed")" | highest)
+            if [[ "$newest" != "$(core "$committed")" ]]; then
+              echo "::error::$committed is older than the last release, $released."
+              echo "::error::Versions only go forwards — Central deployments cannot be replaced."
+              exit 1
+            fi
+          fi
+
           echo "Releasing $committed from $(git rev-parse --short HEAD)"
 
       - name: Set up JDK 21

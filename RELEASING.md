@@ -46,8 +46,9 @@ git commit -am 'Open 1.0.1-SNAPSHOT for development'
 
 ## What the workflow does, and why in that order
 
-1. **Check** the requested version matches `main`, is not a `-SNAPSHOT`, is semantic, and has no
-   existing tag. Published versions are immutable, so re-releasing one is worth catching first.
+1. **Check** the requested version matches `main`, is not a `-SNAPSHOT`, is semantic, has no
+   existing tag, and is not older than the last release. Published versions are immutable, so
+   re-releasing one — or quietly going backwards — is worth catching first.
 2. **Check the Central configuration** — before building, so a missing secret costs seconds rather
    than a full matrix.
 3. **Verify** — `./gradlew build`, the whole matrix.
