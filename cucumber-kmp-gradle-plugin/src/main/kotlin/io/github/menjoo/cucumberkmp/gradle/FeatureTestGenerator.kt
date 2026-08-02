@@ -8,6 +8,7 @@ import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.MemberName
 import com.squareup.kotlinpoet.PropertySpec
 import com.squareup.kotlinpoet.TypeSpec
+import com.squareup.kotlinpoet.joinToCode
 import io.github.menjoo.cucumberkmp.core.SourceLocation
 import io.github.menjoo.cucumberkmp.core.gherkin.DataTable
 import io.github.menjoo.cucumberkmp.core.gherkin.DocString
@@ -162,7 +163,10 @@ public object FeatureTestGenerator {
             .add("name = %S,\n", pickle.name)
             .add("language = %S,\n", pickle.language)
             .add("location = %L,\n", locationCode(pickle.location))
-            .add("tags = listOf(%L),\n", pickle.tags.joinToString { "\"$it\"" })
+            // %S, not a hand-built literal: a tag may contain anything but whitespace, including
+            // a quote or a `${'$'}{...}` template that would otherwise become code in the consumer's
+            // test source set.
+            .add("tags = listOf(%L),\n", pickle.tags.map { CodeBlock.of("%S", it) }.joinToCode())
             .add("steps = listOf(\n").indent()
             .add(steps.build())
             .unindent().add("),\n")
@@ -209,13 +213,17 @@ public object FeatureTestGenerator {
             .add("%T(\n", DOC_STRING).indent()
             .add("location = %L,\n", locationCode(docString.location))
             .add("content = %S,\n", docString.content)
-            .add("mediaType = %L,\n", docString.mediaType?.let { "\"$it\"" } ?: "null")
+            // The media type is unconstrained text after the fence, so it goes through %S for the
+            // same reason the tags above do.
+            .add("mediaType = %L,\n", docString.mediaType?.let { CodeBlock.of("%S", it) } ?: NULL)
             .add("delimiter = %S,\n", docString.delimiter)
             .unindent().add(")")
             .build()
 
     private fun locationCode(location: SourceLocation): CodeBlock =
         CodeBlock.of("%T(%S, %L, %L)", SOURCE_LOCATION, location.path, location.line, location.column)
+
+    private val NULL = CodeBlock.of("null")
 
     private const val CORE = "io.github.menjoo.cucumberkmp.core"
     private val SOURCE_LOCATION = ClassName(CORE, "SourceLocation")
