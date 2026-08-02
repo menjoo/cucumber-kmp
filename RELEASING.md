@@ -30,6 +30,10 @@ The input is a confirmation, not the source of truth: the workflow refuses to ru
 `cucumberkmp.version` on `main`. That makes it impossible to release "whatever happened to be on
 main" by mistake.
 
+The job runs in the `release` environment, so it waits for a deployment approval before it starts.
+That approval is what releases the signing key and the Central Portal credentials to the run —
+they are environment secrets, not repository secrets, so no other workflow can reach them.
+
 ### 3. Open a pull request for the next development version
 
 The workflow's summary prints the command. By default:

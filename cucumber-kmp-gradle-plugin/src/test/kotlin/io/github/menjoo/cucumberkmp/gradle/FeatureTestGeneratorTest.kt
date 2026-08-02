@@ -2,9 +2,13 @@ package io.github.menjoo.cucumberkmp.gradle
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class FeatureTestGeneratorTest {
+
+    /** A literal `$`, so the hostile-input fixtures below read as what they are. */
+    private val DOLLAR = "$"
 
     private fun generate(source: String, tagFilter: String? = null): String =
         FeatureTestGenerator.generate(
@@ -177,6 +181,79 @@ class FeatureTestGeneratorTest {
         assertEquals("same", FeatureTestGenerator.uniqueFunctionName("same", 0, used))
         assertEquals("same2", FeatureTestGenerator.uniqueFunctionName("same", 1, used))
         assertEquals("same3", FeatureTestGenerator.uniqueFunctionName("same", 2, used))
+    }
+
+    // ---------------------------------------------------------------- hostile input
+    //
+    // A .feature file is data, reviewed as prose. Anything from it that lands in the generated
+    // source has to be escaped, or the data channel becomes a code channel: the generated class is
+    // compiled and run by `./gradlew build` on whatever machine builds the project.
+
+    @Test
+    fun `escapes a tag that would otherwise interpolate`() {
+        // A tag may contain anything except whitespace, and `${'$'}{...}` needs none.
+        val code = generate(
+            """
+            Feature: F
+              @a$DOLLAR{Runtime.getRuntime()}
+              Scenario: S
+                Given x
+            """.trimIndent(),
+        )
+
+        assertTrue(code.contains("@a$DOLLAR{'$DOLLAR'}{Runtime.getRuntime()}"), code)
+        // The raw form would be a live template in the consumer's test source.
+        assertFalse(code.contains("\"@a$DOLLAR{Runtime.getRuntime()}\""), code)
+    }
+
+    @Test
+    fun `escapes a tag containing a quote`() {
+        val code = generate(
+            """
+            Feature: F
+              @b"c
+              Scenario: S
+                Given x
+            """.trimIndent(),
+        )
+        assertTrue(code.contains("""tags = listOf("@b\"c")"""), code)
+    }
+
+    @Test
+    fun `escapes a doc string media type that would close the literal`() {
+        // The media type is unconstrained text after the fence — quotes and all.
+        val code = generate(
+            """
+            Feature: F
+              Scenario: S
+                Given a payload
+                  ${"\"\"\""}json"); error("pwned"); DocString(null, "
+                  body
+                  ${"\"\"\""}
+            """.trimIndent(),
+        )
+
+        assertTrue(code.contains("""mediaType = "json\"); error(\"pwned\"); DocString(null, \"""""), code)
+        // Unescaped, this would have been a statement rather than a value.
+        assertFalse(code.contains("""); error("pwned")"""), code)
+    }
+
+    @Test
+    fun `neutralises a scenario name that would close the KDoc comment`() {
+        // The name is echoed into the function's KDoc, where a bare `*/` would end the block early
+        // and leave the rest as source. KotlinPoet already escapes the `*` to `&#42;`, so this is a
+        // guard on behaviour we depend on rather than a bug that was fixed here.
+        val code = generate(
+            """
+            Feature: F
+              Scenario: ends the comment */ val pwned = error("x") /*
+                Given x
+            """.trimIndent(),
+        )
+
+        assertTrue(code.contains("ends the comment &#42;/ val pwned"), code)
+        // The same text as a `name` argument is a string literal, where it is inert.
+        assertTrue(code.contains("""name = "ends the comment */ val pwned = error(\"x\") /*""""), code)
     }
 
     @Test
