@@ -1,7 +1,7 @@
 // GENERATED FILE — DO NOT EDIT BY HAND.
 //
 // Regenerate with:  python3 tools/update-tag-expression-corpus.py
-// Source: https://github.com/cucumber/tag-expressions @ 3046b904a97b088855029abf5b0f2c935024d4c6
+// Source: https://github.com/cucumber/tag-expressions @ 80196942f4e16407f25a481097e954fcbe06e7fa
 // 23 parsing, 26 evaluation, 15 error cases.
 
 package io.github.menjoo.cucumberkmp.core.tag

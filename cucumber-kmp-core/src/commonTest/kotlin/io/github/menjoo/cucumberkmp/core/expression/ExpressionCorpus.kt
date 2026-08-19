@@ -1,7 +1,7 @@
 // GENERATED FILE — DO NOT EDIT BY HAND.
 //
 // Regenerate with:  python3 tools/update-expression-corpus.py
-// Source: https://github.com/cucumber/cucumber-expressions @ 6dbb4888abadf5d3e113f18b00e4887507ce6ca9
+// Source: https://github.com/cucumber/cucumber-expressions @ 7e7c482cbeb79a72580049c747aa23392b6fc20a
 // 16 tokenizer, 28 parser, 8 transformation, 65 matching, 3 regex
 
 package io.github.menjoo.cucumberkmp.core.expression
