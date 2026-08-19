@@ -108,6 +108,35 @@ def render(parsing, evaluations, errors, ref: str) -> str:
     return "\n".join(out)
 
 
+def clone_and_pin(ref: str, destination: pathlib.Path) -> str:
+    """Clone upstream at `ref` and return the last commit that touched `testdata/`.
+
+    Pinning `HEAD` instead would re-pin on every unrelated upstream commit, and the drift
+    check (.github/workflows/upstream-drift.yml) would then report news every week the
+    fixtures had not moved. The clone is blobless rather than shallow because a shallow
+    one cannot answer a path-scoped log; trees are cheap and blobs arrive on checkout.
+    """
+    subprocess.run(
+        ["git", "clone", "--filter=blob:none", "--branch", ref, "-q", REPO, str(destination)],
+        check=True,
+    )
+    log = subprocess.run(
+        ["git", "-C", str(destination), "log", "-1", "--format=%H", "--", "testdata"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if log:
+        return log
+    # No commit touches testdata/ -- upstream moved it, so fall back to naming the checkout.
+    return subprocess.run(
+        ["git", "-C", str(destination), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ref", default="main")
@@ -116,14 +145,7 @@ def main() -> int:
     workdir = pathlib.Path(tempfile.mkdtemp(prefix="tag-expression-corpus-"))
     try:
         checkout = workdir / "tag-expressions"
-        subprocess.run(
-            ["git", "clone", "--depth", "1", "--branch", args.ref, "-q", REPO, str(checkout)],
-            check=True,
-        )
-        ref = subprocess.run(
-            ["git", "-C", str(checkout), "rev-parse", "HEAD"],
-            check=True, capture_output=True, text=True,
-        ).stdout.strip()
+        ref = clone_and_pin(args.ref, checkout)
 
         testdata = checkout / "testdata"
         parsing = yaml.safe_load((testdata / "parsing.yml").read_text(encoding="utf-8"))

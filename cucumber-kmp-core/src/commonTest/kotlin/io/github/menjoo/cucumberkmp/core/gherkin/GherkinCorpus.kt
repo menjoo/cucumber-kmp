@@ -1,7 +1,7 @@
 // GENERATED FILE — DO NOT EDIT BY HAND.
 //
 // Regenerate with:  python3 tools/update-gherkin-corpus.py
-// Source: https://github.com/cucumber/gherkin @ bce691b4d3ec06d3b9ce83bf6c264ec11f108540
+// Source: https://github.com/cucumber/gherkin @ 39d5a71caaa2b6e90042a043525c8e6cd8a7be09
 // 50 parseable features, 12 failing features.
 //
 // Embedded as Kotlin rather than test resources because Native and Wasm cannot

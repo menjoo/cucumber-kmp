@@ -4,7 +4,7 @@
 aspiration — see ARCHITECTURE.md §2. Every intentional difference belongs here, with its reason.
 An undocumented divergence in a port is a bug report waiting to happen.
 
-**Ported against:** upstream `cucumber/gherkin` `main` as of 2026-07-31 (80 languages).
+**Ported against:** upstream `cucumber/gherkin` `main` as of 2026-08-19 (80 languages).
 
 ## Architectural
 
