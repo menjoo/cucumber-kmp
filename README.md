@@ -23,6 +23,37 @@ the tests those files describe run natively on every target the app ships to.
 > The API may still change between 0.x releases. On-device Android and iOS runs, and the Cucumber
 > Compatibility Kit, are not done yet — see [ARCHITECTURE.md](ARCHITECTURE.md) for the roadmap.
 
+## Supported versions
+
+What the artifacts require, as distinct from what this repository is built with. The build
+versions are in [`gradle/libs.versions.toml`](gradle/libs.versions.toml); these are the floors a
+consumer has to clear.
+
+| | Supported | Built and tested with |
+| --- | --- | --- |
+| Kotlin | 2.4.x | 2.4.10 |
+| KSP | 2.3.x | 2.3.10 |
+| Gradle | 9.x | 9.6.1 |
+| AGP (Android consumers) | 9.x | 9.3.1 |
+| JDK (to run the build) | 21 | 21 |
+
+Two things worth knowing, because neither is guessable:
+
+- **Kotlin is a floor, not a pin.** klib metadata is forward-incompatible, so a consumer's
+  compiler cannot be older than the language version the artifacts were built with. 2.4.x is
+  therefore a real minimum, while the patch version is free — 2.4.0 consumes 2.4.10 artifacts.
+- **KSP is versioned independently of Kotlin.** Its POM pins no Kotlin dependency, so the
+  historical Kotlin↔KSP lockstep no longer applies. A 2.3.10-built processor runs on a 2.3.9
+  host; there is no need to match the patch version, or to bump KSP across a repository to adopt
+  this one.
+
+The lowest combination actually exercised against these artifacts is Kotlin 2.4.0, KSP 2.3.9,
+Gradle 9.5.1 and AGP 9.2.1, in a consuming project — every claim above is measured rather than
+assumed.
+
+Older Kotlin or Gradle lines are not tested and not supported. If you need one, open an issue
+saying which — it is likelier to be a CI matrix entry than a code change.
+
 ## Installation
 
 `settings.gradle.kts`:
