@@ -2,8 +2,8 @@
 # Resolved from Maven Central / Google Maven on 2026-07-31. See ARCHITECTURE.md §14.
 # KSP 2.x is versioned independently of Kotlin (its POM pins no Kotlin dependency),
 # so the historical Kotlin<->KSP lockstep constraint no longer applies.
-kotlin = "2.4.10"
-ksp = "2.3.10"
+kotlin = "2.4.20"
+ksp = "2.3.12"
 # AGP 8.x relies on org.gradle.api.problems.internal.InternalProblems, removed in Gradle 9.6.0.
 # AGP 8.13.2 therefore requires Gradle <= 9.5; the 9.x line is the one built for Gradle 9.
 agp = "9.3.1"

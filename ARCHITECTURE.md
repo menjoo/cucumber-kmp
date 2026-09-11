@@ -524,7 +524,7 @@ fixtures mean correctness is measurable from day one rather than asserted.
 - Tests: `kotlin.test` only in test source sets; upstream fixtures for conformance; golden-file
   tests for both codegen paths.
 - All versions live in `gradle/libs.versions.toml`. Pinned as of bootstrap: **Gradle 9.6.1,
-  Kotlin 2.4.10, KSP 2.3.10, AGP 9.3.1, coroutines 1.11.0, KotlinPoet 2.3.0.**
+  Kotlin 2.4.20, KSP 2.3.12, AGP 9.3.1, coroutines 1.11.0, KotlinPoet 2.3.0.**
 - Three build-setup facts, each of which cost a build failure to learn — do not "simplify" them
   back:
   1. **AGP must be 9.x on Gradle 9.6+.** AGP 8.x uses `InternalProblems`, a Gradle internal API

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/menjoo/cucumber-kmp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/menjoo/cucumber-kmp/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.menjoo.cucumberkmp/cucumber-kmp-core)](https://central.sonatype.com/artifact/io.github.menjoo.cucumberkmp/cucumber-kmp-core)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.4.10-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4.20-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ![JVM](https://img.shields.io/badge/JVM-supported-success)
@@ -31,8 +31,8 @@ consumer has to clear.
 
 | | Supported | Built and tested with |
 | --- | --- | --- |
-| Kotlin | 2.4.x | 2.4.10 |
-| KSP | 2.3.x | 2.3.10 |
+| Kotlin | 2.4.x | 2.4.20 |
+| KSP | 2.3.x | 2.3.12 |
 | Gradle | 9.x | 9.6.1 |
 | AGP (Android consumers) | 9.x | 9.3.1 |
 | JDK (to run the build) | 21 | 21 |
@@ -41,9 +41,9 @@ Two things worth knowing, because neither is guessable:
 
 - **Kotlin is a floor, not a pin.** klib metadata is forward-incompatible, so a consumer's
   compiler cannot be older than the language version the artifacts were built with. 2.4.x is
-  therefore a real minimum, while the patch version is free — 2.4.0 consumes 2.4.10 artifacts.
+  therefore a real minimum, while the patch version is free — 2.4.0 consumes 2.4.20 artifacts.
 - **KSP is versioned independently of Kotlin.** Its POM pins no Kotlin dependency, so the
-  historical Kotlin↔KSP lockstep no longer applies. A 2.3.10-built processor runs on a 2.3.9
+  historical Kotlin↔KSP lockstep no longer applies. A 2.3.12-built processor runs on a 2.3.9
   host; there is no need to match the patch version, or to bump KSP across a repository to adopt
   this one.
 
@@ -69,7 +69,7 @@ pluginManagement {
 ```kotlin
 plugins {
     kotlin("multiplatform")
-    id("com.google.devtools.ksp") version "2.3.10"
+    id("com.google.devtools.ksp") version "2.3.12"
     id("io.github.menjoo.cucumberkmp") version "0.1.2"
 }
 
