@@ -129,14 +129,36 @@ class CucumberKmpPluginFunctionalTest {
     }
 
     @Test
-    fun `explains what to do when the step registry is not configured`() {
+    fun `defaults the step registry to the one KSP generates`() {
+        // Nothing configured at all: the package the plugin hands KSP and the registry the
+        // generated tests call are the same value, so a consumer using annotations sets neither.
         writeProject("plugins { id(\"io.github.menjoo.cucumberkmp\") }")
         writeFeature("calculator.feature", "Feature: F\n  Scenario: S\n    Given x")
 
-        val result = runner("generateCucumberTests").buildAndFail()
+        runner("generateCucumberTests").build()
 
-        assertTrue(result.output.contains("cucumberKmp.stepRegistry is not set"), result.output)
-        assertTrue(result.output.contains("generatedStepRegistry"), result.output)
+        val code = projectDir
+            .resolve("build/generated/cucumber/kotlin/cucumber/generated/CalculatorFeatureTest.kt")
+            .readText()
+        assertTrue(code.contains("generatedStepRegistry"), code)
+    }
+
+    @Test
+    fun `follows generatedPackage when the registry is left to default`() {
+        writeProject(
+            """
+            plugins { id("io.github.menjoo.cucumberkmp") }
+            cucumberKmp { generatedPackage.set("com.example.app.cucumber") }
+            """.trimIndent(),
+        )
+        writeFeature("calculator.feature", "Feature: F\n  Scenario: S\n    Given x")
+
+        runner("generateCucumberTests").build()
+
+        val code = projectDir
+            .resolve("build/generated/cucumber/kotlin/com/example/app/cucumber/CalculatorFeatureTest.kt")
+            .readText()
+        assertTrue(code.contains("com.example.app.cucumber.generatedStepRegistry"), code)
     }
 
     @Test

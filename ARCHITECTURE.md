@@ -205,6 +205,13 @@ constructor, hooks that take parameters, and malformed hook tag expressions. It 
 expressions using the very parser it generates calls to — the processor depends on the JVM artifact
 of `cucumber-kmp-core`, the same trick the Gradle plugin uses for `.feature` files.
 
+**The Gradle plugin adds the processor to each test compilation itself.** It has already chosen
+those compilations to place generated tests in (§4a), so a consumer restating the list as
+`kspJvmTest`, `kspIosSimulatorArm64Test`, … duplicates that traversal and goes stale when a target
+is added. It is added eagerly, which is safe because the processor emits nothing when a compilation
+has no `@Steps` in scope. The plugin also passes `cucumberkmp.generatedPackage`, so the registry
+lands where the generated tests expect it and `cucumberKmp.stepRegistry` defaults to it.
+
 **Generation is per target compilation, not over common metadata.** KSP's only metadata entry point
 is `kspCommonMainMetadata`, so nothing can be generated into `commonTest`. Each target's test
 compilation processes the shared `commonTest` sources and emits its own copy of the registry, which
