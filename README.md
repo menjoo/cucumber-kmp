@@ -50,22 +50,26 @@ kotlin {
         }
     }
 }
+```
 
-// KSP generates the step registry per target test compilation; it cannot generate into commonTest.
-listOf("kspJvmTest", "kspMacosArm64Test", "kspIosSimulatorArm64Test", "kspJsTest", "kspWasmJsTest")
-    .forEach { dependencies.add(it, "io.github.menjoo.cucumberkmp:cucumber-kmp-ksp:0.1.2") }
+That is the whole configuration. The plugin adds `cucumber-kmp-ksp` to each test compilation
+itself — KSP generates the step registry per target compilation because it cannot generate into
+`commonTest`, and the plugin already knows which compilations those are.
 
-ksp { arg("cucumberkmp.generatedPackage", "com.example.generated") }
+The generated tests and the generated step registry share one package, which the plugin hands to
+KSP itself, so `cucumberKmp { }` needs nothing unless you want to choose that package:
 
+```kotlin
 cucumberKmp {
-    stepRegistry.set("com.example.generated.generatedStepRegistry")
+    generatedPackage.set("com.example.cucumber")
 }
 ```
 
 Feature files go in `src/commonTest/resources/features`. See
 [`examples/calculator`](examples/calculator) for a complete, working project.
 
-Only `cucumber-kmp-core` is needed if you use the `steps { }` DSL rather than annotations.
+Only `cucumber-kmp-core` is needed if you use the `steps { }` DSL rather than annotations — with
+no KSP in play, point `cucumberKmp { stepRegistry }` at whichever property holds your factory.
 
 ## How it looks
 

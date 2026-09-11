@@ -45,27 +45,11 @@ kotlin {
     }
 }
 
-// The step registry is generated per target test compilation — KSP cannot generate into
-// commonTest. See ARCHITECTURE.md §13.1.
-listOf(
-    "kspJvmTest",
-    "kspAndroidHostTest",
-    "kspMacosArm64Test",
-    "kspIosSimulatorArm64Test",
-    "kspIosArm64Test",
-    "kspJsTest",
-    "kspWasmJsTest",
-).forEach { configuration ->
-    dependencies.add(configuration, "io.github.menjoo.cucumberkmp:cucumber-kmp-ksp:$cucumberKmpVersion")
-}
-
-ksp {
-    arg("cucumberkmp.generatedPackage", "com.example.calculator.generated")
-}
-
 cucumberKmp {
     // Where the PO writes feature files. This is the default, spelled out for the example.
     featureDirectory.set(layout.projectDirectory.dir("src/commonTest/resources/features"))
+
+    // The plugin hands this to KSP as well, so the generated tests and the generated step
+    // registry land in one package and `stepRegistry` needs no value of its own.
     generatedPackage.set("com.example.calculator.cucumber")
-    stepRegistry.set("com.example.calculator.generated.generatedStepRegistry")
 }

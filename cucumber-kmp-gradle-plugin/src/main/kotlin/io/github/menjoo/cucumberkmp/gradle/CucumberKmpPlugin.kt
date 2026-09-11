@@ -4,6 +4,7 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.provider.Property
 import org.gradle.api.file.DirectoryProperty
+import com.google.devtools.ksp.gradle.KspExtension
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSet
 import java.util.concurrent.Callable
@@ -28,15 +29,21 @@ public abstract class CucumberKmpExtension {
      */
     public abstract val featureDirectory: DirectoryProperty
 
-    /** Package for the generated test classes. Defaults to `cucumber.generated`. */
+    /**
+     * Package for the generated code — both the test classes and the KSP step registry.
+     * Defaults to `cucumber.generated`.
+     *
+     * The plugin passes this to KSP as `cucumberkmp.generatedPackage`, so it is set in one place
+     * rather than restated in a `ksp { arg(...) }` block that has to agree with it.
+     */
     public abstract val generatedPackage: Property<String>
 
     /**
      * A fully-qualified Kotlin expression evaluating to a `StepRegistryFactory`.
      *
-     * With KSP that is the generated property, for example
-     * `com.example.generated.generatedStepRegistry`. With the `steps { }` DSL it is whatever
-     * property holds the factory.
+     * Defaults to the registry KSP generates from `@Steps` classes, which lands in
+     * [generatedPackage]. Set it only for the `steps { }` DSL, where the factory is an ordinary
+     * property of the consumer's own.
      */
     public abstract val stepRegistry: Property<String>
 
@@ -68,6 +75,17 @@ public class CucumberKmpPlugin : Plugin<Project> {
             target.layout.projectDirectory.dir("src/commonTest/resources/features"),
         )
         extension.generatedPackage.convention("cucumber.generated")
+        extension.stepRegistry.convention(
+            extension.generatedPackage.map { "$it.$GENERATED_REGISTRY_PROPERTY" },
+        )
+
+        // KSP generates the registry into the package this plugin already knows about, so a
+        // consumer does not restate it in a `ksp { arg(...) }` block that has to agree. Provider
+        // based, so the value is read after the consumer's `cucumberKmp { }` block runs.
+        target.plugins.withId("com.google.devtools.ksp") {
+            target.extensions.getByType(KspExtension::class.java)
+                .arg(KSP_GENERATED_PACKAGE_OPTION, extension.generatedPackage)
+        }
 
         val generate = target.tasks.register(
             TASK_NAME,
@@ -89,6 +107,25 @@ public class CucumberKmpPlugin : Plugin<Project> {
                     if (compilation.name !in TEST_COMPILATION_NAMES) return@configureEach
 
                     val sourceSet = compilation.defaultSourceSet
+
+                    // The processor generates the step registry this compilation's tests call,
+                    // so it belongs in exactly the compilations chosen here — restating that list
+                    // in every consumer's build file duplicates a traversal the plugin just did.
+                    // Eager is safe: the processor emits nothing at all when a compilation has no
+                    // @Steps in scope, so a compilation skipped below simply does no work.
+                    target.plugins.withId("com.google.devtools.ksp") {
+                        val kspConfiguration =
+                            "ksp${kotlinTarget.name.capitalise()}${compilation.name.capitalise()}"
+                        target.configurations
+                            .matching { it.name == kspConfiguration }
+                            .configureEach { configuration ->
+                                configuration.dependencies.add(
+                                    target.dependencies.create(
+                                        "$KSP_ARTIFACT:$CUCUMBER_KMP_VERSION",
+                                    ),
+                                )
+                            }
+                    }
 
                     // Resolved lazily, and that is the whole point. A compilation is realised as
                     // its target is declared, but the Kotlin plugin finalises `dependsOn` edges in
@@ -136,6 +173,15 @@ public class CucumberKmpPlugin : Plugin<Project> {
          * `deviceTest` instead.
          */
         val TEST_COMPILATION_NAMES = setOf("test", "hostTest", "deviceTest")
+
+        /** The KSP option naming the package the step registry is generated into. */
+        const val KSP_GENERATED_PACKAGE_OPTION = "cucumberkmp.generatedPackage"
+
+        /** The processor artifact, added to each test compilation's KSP configuration. */
+        const val KSP_ARTIFACT = "io.github.menjoo.cucumberkmp:cucumber-kmp-ksp"
+
+        /** The property `cucumber-kmp-ksp` emits, which the generated tests call. */
+        const val GENERATED_REGISTRY_PROPERTY = "generatedStepRegistry"
     }
 }
 
@@ -162,6 +208,9 @@ internal const val SHARED_TEST_SOURCE_SET: String = "commonTest"
  */
 internal fun KotlinSourceSet.canSeeStepDefinitions(): Boolean =
     SHARED_TEST_SOURCE_SET in closureOf(this) { it.dependsOn }.map { it.name }
+
+/** Gradle's configuration names are camel-cased from target and compilation names. */
+private fun String.capitalise(): String = replaceFirstChar { it.uppercaseChar() }
 
 /**
  * Every node reachable from [start] through [next], [start] itself included.
