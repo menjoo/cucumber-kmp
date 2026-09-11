@@ -143,6 +143,22 @@ Generated file names and test function names must be **deterministic and stable*
 in CI reports. Sanitise Gherkin names to valid Kotlin identifiers via backticked function names
 where the target allows it, and keep a plain-ASCII fallback for targets that reject them.
 
+**"Every target's test source set" means every one that can reach `commonTest`.** A test source
+set that does not is skipped, with the reason logged at `info`. The motivating case is an Android
+device-test source set: AGP puts it in its own source-set tree, so it inherits nothing, and
+generated scenarios there fail to compile. Adding the cucumber dependencies to it does not help —
+KSP scans one compilation's own sources, so the step definitions in `commonTest` stay invisible and
+the registry comes out empty. A green compile and every scenario undefined at runtime is a worse
+outcome than the compile error, so the plugin declines rather than letting a consumer "fix" it.
+
+The decision is made **lazily**, inside a `Callable` passed to `srcDir`. This is not a style
+choice. A compilation is realised as its target is declared, but the Kotlin plugin finalises
+`dependsOn` edges in a later lifecycle stage — after `afterEvaluate`, with no public hook in
+between. Both `configureEach` and `afterEvaluate` therefore observe an empty `dependsOn` and skip
+*everything*, producing a green build containing no scenarios at all. `examples/calculator` is the
+regression guard: Gradle 9 fails a test task that discovers no tests, so a build that silently
+generates nothing goes red in CI.
+
 ### 4b. Step definitions → StepRegistry (KSP)
 
 `cucumber-kmp-annotations` mirrors the `io.cucumber.java.en` annotation set:
