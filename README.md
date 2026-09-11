@@ -70,14 +70,14 @@ pluginManagement {
 plugins {
     kotlin("multiplatform")
     id("com.google.devtools.ksp") version "2.3.12"
-    id("io.github.menjoo.cucumberkmp") version "0.1.2"
+    id("io.github.menjoo.cucumberkmp") version "0.2.0"
 }
 
 kotlin {
     sourceSets {
         commonTest.dependencies {
-            implementation("io.github.menjoo.cucumberkmp:cucumber-kmp-core:0.1.2")
-            implementation("io.github.menjoo.cucumberkmp:cucumber-kmp-annotations:0.1.2")
+            implementation("io.github.menjoo.cucumberkmp:cucumber-kmp-core:0.2.0")
+            implementation("io.github.menjoo.cucumberkmp:cucumber-kmp-annotations:0.2.0")
         }
     }
 }
