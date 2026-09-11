@@ -38,9 +38,9 @@ pluginManagement {
     }
 
     plugins {
-        kotlin("multiplatform") version "2.4.10"
+        kotlin("multiplatform") version "2.4.20"
         id("com.android.kotlin.multiplatform.library") version "9.3.1"
-        id("com.google.devtools.ksp") version "2.3.10"
+        id("com.google.devtools.ksp") version "2.3.12"
         // Read from the repository's gradle.properties rather than hardcoded, so a release does
         // not silently leave the example pinned to a version that no longer exists.
         //
