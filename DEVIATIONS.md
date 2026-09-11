@@ -74,6 +74,21 @@ re-derived from first principles. Pinned by `unexpected_eof.feature` and
 places `#Language` before `#TagLine`, so this should agree, but no fixture covers it, so it
 remains our choice rather than a verified behaviour.
 
+## Data tables
+
+### Conversions are `String`-only
+
+`asList`, `asLists`, `asMap` and `asMaps` mirror upstream's `io.cucumber.datatable.DataTable`,
+but only in their untyped form. Upstream also converts cell text to a declared element type via
+registered table converters; we have no converter registry, so a step definition parses cells
+itself. The step's own Cucumber Expression placeholders remain typed — this affects table cells
+only.
+
+There is likewise no implicit binding of a single-column table to a `List<String>` parameter. A
+table reaches a step as a trailing `DataTable`, which `asList()` then flattens. The parameter
+types a step may declare are checked at compile time (`StepDefinitionProcessor.ATTACHMENT_TYPES`),
+and keeping that check exact is worth more than the one saved call.
+
 ## Cucumber Expressions
 
 Pinned by upstream's own test data: all 120 fixtures across the tokenizer, parser, regex-generation
