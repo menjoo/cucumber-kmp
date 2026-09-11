@@ -122,7 +122,8 @@ the block is fresh each time — per-scenario isolation falls out of ordinary Ko
 dependency-injection container and no reflection.
 
 Also implemented: the full 80-language Gherkin dialect table, Cucumber Expressions with all of
-Cucumber's built-in parameter types, tag expressions, backgrounds, scenario outlines, data tables,
+Cucumber's built-in parameter types, tag expressions, backgrounds, scenario outlines, data tables (with upstream's
+`asList`/`asLists`/`asMap`/`asMaps` conversions),
 doc strings, rules, hooks, tag filtering, and undefined/ambiguous step reporting with paste-able
 snippets.
 

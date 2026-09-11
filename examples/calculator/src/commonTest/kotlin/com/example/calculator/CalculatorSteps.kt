@@ -48,9 +48,10 @@ class CalculatorSteps {
     /** A step taking the feature's data table as its last parameter. */
     @Given("the basket contains")
     fun theBasketContains(items: DataTable) {
-        // Row 0 is the header.
-        for (row in items.rows.drop(1)) {
-            calculator.enter(row.cells[1].value.toDouble())
+        // asMaps() keys each row by the header row, so the step reads a column by name rather
+        // than by position — and stays correct if the feature's columns are reordered.
+        for (item in items.asMaps()) {
+            calculator.enter(item.getValue("price").toDouble())
         }
     }
 

@@ -147,7 +147,64 @@ public enum class StepKeywordType {
 public data class DataTable(
     public val location: SourceLocation,
     public val rows: List<TableRow>,
-)
+) {
+
+    /**
+     * Every cell, row by row.
+     *
+     * The single-column case is the common one — a table written as a plain list of values — and
+     * this is what cucumber-jvm binds to a `List<String>` parameter.
+     */
+    public fun asList(): List<String> = rows.flatMap { row -> row.cells.map { it.value } }
+
+    /** Each row as its own list of cell values, header row included. */
+    public fun asLists(): List<List<String>> = rows.map { row -> row.cells.map { it.value } }
+
+    /**
+     * A two-column table read as key/value pairs.
+     *
+     * There is no header here: every row is an entry, matching cucumber-jvm. A table that is not
+     * two columns wide, or that repeats a key, is a mistake in the feature file rather than
+     * something to resolve silently, so both fail.
+     */
+    public fun asMap(): Map<String, String> {
+        val width = rows.firstOrNull()?.cells?.size ?: return emptyMap()
+        require(width == 2) {
+            "asMap() needs a two-column table, but the table at $location is $width wide. " +
+                "Use asMaps() for a table with a header row, or asLists() for the raw rows."
+        }
+        return rows.associateEntries { row -> row.cells[0].value to row.cells[1].value }
+    }
+
+    /**
+     * Each row after the first as a map, keyed by the first row.
+     *
+     * A table of only a header — or no table at all — has no entries and yields an empty list,
+     * as it does upstream.
+     */
+    public fun asMaps(): List<Map<String, String>> {
+        val header = rows.firstOrNull()?.cells?.map { it.value } ?: return emptyList()
+        header.requireDistinct("header cell")
+        return rows.drop(1).map { row -> header.zip(row.cells.map { it.value }).toMap() }
+    }
+
+    /** [Iterable.associate], but a repeated key is an error rather than a silent overwrite. */
+    private fun List<TableRow>.associateEntries(
+        entry: (TableRow) -> Pair<String, String>,
+    ): Map<String, String> {
+        val entries = map(entry)
+        entries.map { it.first }.requireDistinct("key")
+        return entries.toMap()
+    }
+
+    private fun List<String>.requireDistinct(what: String) {
+        val duplicates = groupingBy { it }.eachCount().filterValues { it > 1 }.keys
+        require(duplicates.isEmpty()) {
+            "The table at $location repeats the $what ${duplicates.sorted().joinToString { "'$it'" }}. " +
+                "Every $what must be unique for this conversion to be lossless."
+        }
+    }
+}
 
 public data class TableRow(
     public val location: SourceLocation,
