@@ -13,3 +13,7 @@ kotlin-js-store/*
 
 # Heap dumps, e.g. from a Kotlin/Native compiler OOM
 *.hprof
+
+# Byte-compiled output from the tools/ scripts
+__pycache__/
+*.py[cod]
