@@ -258,18 +258,18 @@ internal fun Project.wireLintTasksToGeneratedSources(
     generate: org.gradle.api.tasks.TaskProvider<*>,
     generatedRegistryTaskName: () -> String?,
 ) {
-    tasks.matching { it.name.isLintTaskFor(compilationTaskSuffix) }
-        .configureEach { lintTask ->
-            lintTask.dependsOn(
-                Callable {
-                    if (!canSeeStepDefinitions()) return@Callable emptyList<Any>()
-                    buildList {
-                        add(generate)
-                        generatedRegistryTaskName()?.let(::add)
-                    }
-                },
-            )
-        }
+    tasks.configureEach { lintTask ->
+        if (!lintTask.name.isLintTaskFor(compilationTaskSuffix)) return@configureEach
+        lintTask.dependsOn(
+            Callable {
+                if (!canSeeStepDefinitions()) return@Callable emptyList<Any>()
+                buildList {
+                    add(generate)
+                    generatedRegistryTaskName()?.let(::add)
+                }
+            },
+        )
+    }
 }
 
 /** Gradle's configuration names are camel-cased from target and compilation names. */

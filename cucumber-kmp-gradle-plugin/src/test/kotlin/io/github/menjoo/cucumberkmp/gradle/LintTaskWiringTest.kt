@@ -112,4 +112,25 @@ class LintTaskWiringTest {
             lintTask.get().taskDependencies.getDependencies(lintTask.get()).map { it.name }.toSet(),
         )
     }
+
+    @Test
+    fun `wires lint tasks registered after the wiring is installed`() {
+        val project = ProjectBuilder.builder().build()
+        val generate = project.tasks.register("generateCucumberTests")
+        project.tasks.register("kspAndroidHostTest")
+
+        project.wireLintTasksToGeneratedSources(
+            compilationTaskSuffix = "AndroidHostTest",
+            canSeeStepDefinitions = { true },
+            generate = generate,
+            generatedRegistryTaskName = { "kspAndroidHostTest" },
+        )
+
+        val lintTask = project.tasks.register("lintAnalyzeAndroidHostTest", DefaultTask::class.java)
+
+        assertEquals(
+            setOf("generateCucumberTests", "kspAndroidHostTest"),
+            lintTask.get().taskDependencies.getDependencies(lintTask.get()).map { it.name }.toSet(),
+        )
+    }
 }
