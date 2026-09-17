@@ -234,8 +234,18 @@ internal const val SHARED_TEST_SOURCE_SET: String = "commonTest"
 internal fun KotlinSourceSet.canSeeStepDefinitions(): Boolean =
     SHARED_TEST_SOURCE_SET in closureOf(this) { it.dependsOn }.map { it.name }
 
-internal fun String.isLintTaskFor(compilationTaskSuffix: String): Boolean =
-    this == "generate${compilationTaskSuffix}LintModel" || this == "lintAnalyze$compilationTaskSuffix"
+internal fun String.isLintTaskFor(compilationTaskSuffix: String): Boolean = when {
+    startsWith("generate") && endsWith("Model") ->
+        removePrefix("generate").removeSuffix("Model").let { generated ->
+            generated.startsWith(compilationTaskSuffix) &&
+                generated.removePrefix(compilationTaskSuffix).startsWith("Lint")
+        }
+    startsWith("update") && endsWith("LintBaseline") ->
+        removePrefix("update").removeSuffix("LintBaseline") == compilationTaskSuffix
+    startsWith("lint") ->
+        removePrefix("lint").endsWith(compilationTaskSuffix)
+    else -> false
+}
 
 internal fun Project.wireLintTasksToGeneratedSources(
     compilationTaskSuffix: String,
