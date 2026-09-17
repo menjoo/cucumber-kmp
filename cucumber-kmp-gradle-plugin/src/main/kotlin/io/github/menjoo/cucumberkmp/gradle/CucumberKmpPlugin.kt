@@ -164,12 +164,8 @@ public class CucumberKmpPlugin : Plugin<Project> {
                                 compilationTaskSuffix(kotlinTarget.name, compilation.name),
                             canSeeStepDefinitions = sourceSet::canSeeStepDefinitions,
                             generate = generate,
-                            generatedRegistryTaskName = {
-                                if (target.plugins.hasPlugin(KSP_PLUGIN_ID)) {
-                                    kspTaskName(kotlinTarget.name, compilation.name)
-                                } else {
-                                    null
-                                }
+                            generatedRegistryTask = {
+                                target.tasks.findByName(kspTaskName(kotlinTarget.name, compilation.name))
                             },
                         )
                     }
@@ -205,7 +201,6 @@ public class CucumberKmpPlugin : Plugin<Project> {
 
         const val ANDROID_KMP_PLUGIN_ID = "com.android.kotlin.multiplatform.library"
 
-        const val KSP_PLUGIN_ID = "com.google.devtools.ksp"
     }
 }
 
@@ -240,20 +235,19 @@ internal fun kspTaskName(targetName: String, compilationName: String): String =
     "ksp${compilationTaskSuffix(targetName, compilationName)}"
 
 internal fun String.isLintTaskFor(compilationTaskSuffix: String): Boolean =
-    matches(
-        Regex(
-            "^(generate${Regex.escape(compilationTaskSuffix)}" +
-                "Lint(?:[A-Z][A-Za-z0-9]*)?Model|" +
-                "update${Regex.escape(compilationTaskSuffix)}LintBaseline|" +
-                "lint(?:[A-Z][A-Za-z0-9]*)${Regex.escape(compilationTaskSuffix)})$",
-        ),
+    this in setOf(
+        "generate${compilationTaskSuffix}LintModel",
+        "generate${compilationTaskSuffix}LintVitalModel",
+        "update${compilationTaskSuffix}LintBaseline",
+        "lintAnalyze$compilationTaskSuffix",
+        "lintVitalAnalyze$compilationTaskSuffix",
     )
 
 internal fun Project.wireLintTasksToGeneratedSources(
     compilationTaskSuffix: String,
     canSeeStepDefinitions: () -> Boolean,
     generate: org.gradle.api.tasks.TaskProvider<*>,
-    generatedRegistryTaskName: () -> String?,
+    generatedRegistryTask: () -> Any?,
 ) {
     tasks.matching { it.name.isLintTaskFor(compilationTaskSuffix) }
         .configureEach { lintTask ->
@@ -262,7 +256,7 @@ internal fun Project.wireLintTasksToGeneratedSources(
                     if (!canSeeStepDefinitions()) return@Callable emptyList<Any>()
                     buildList {
                         add(generate)
-                        generatedRegistryTaskName()?.let(::add)
+                        generatedRegistryTask()?.let(::add)
                     }
                 },
             )

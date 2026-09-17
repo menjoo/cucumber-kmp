@@ -21,6 +21,7 @@ class LintTaskWiringTest {
         assertEquals(true, "lintVitalAnalyzeAndroidHostTest".isLintTaskFor("AndroidHostTest"))
         assertEquals(true, "updateAndroidHostTestLintBaseline".isLintTaskFor("AndroidHostTest"))
         assertEquals(false, "kspAndroidHostTest".isLintTaskFor("AndroidHostTest"))
+        assertEquals(false, "lintFixAndroidHostTest".isLintTaskFor("AndroidHostTest"))
         assertEquals(false, "lintAnalyzeAndroidDeviceTest".isLintTaskFor("AndroidHostTest"))
         assertEquals(false, "cleanupAndroidHostTestLintOutputs".isLintTaskFor("AndroidHostTest"))
     }
@@ -42,7 +43,7 @@ class LintTaskWiringTest {
             compilationTaskSuffix = "AndroidHostTest",
             canSeeStepDefinitions = { true },
             generate = generate,
-            generatedRegistryTaskName = { "kspAndroidHostTest" },
+            generatedRegistryTask = { project.tasks.findByName("kspAndroidHostTest") },
         )
 
         assertEquals(
@@ -85,7 +86,7 @@ class LintTaskWiringTest {
             compilationTaskSuffix = "AndroidHostTest",
             canSeeStepDefinitions = { false },
             generate = generate,
-            generatedRegistryTaskName = { "kspAndroidHostTest" },
+            generatedRegistryTask = { project.tasks.findByName("kspAndroidHostTest") },
         )
 
         assertEquals(
@@ -104,7 +105,7 @@ class LintTaskWiringTest {
             compilationTaskSuffix = "AndroidHostTest",
             canSeeStepDefinitions = { true },
             generate = generate,
-            generatedRegistryTaskName = { null },
+            generatedRegistryTask = { null },
         )
 
         assertEquals(
@@ -123,7 +124,7 @@ class LintTaskWiringTest {
             compilationTaskSuffix = "AndroidHostTest",
             canSeeStepDefinitions = { true },
             generate = generate,
-            generatedRegistryTaskName = { "kspAndroidHostTest" },
+            generatedRegistryTask = { project.tasks.findByName("kspAndroidHostTest") },
         )
 
         val lintTask = project.tasks.register("lintAnalyzeAndroidHostTest", DefaultTask::class.java)
