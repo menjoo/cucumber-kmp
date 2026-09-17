@@ -153,6 +153,27 @@ public class CucumberKmpPlugin : Plugin<Project> {
                             },
                         ),
                     )
+
+                    // AGP resolves source sets to plain directories for its lint model, so the task
+                    // provider hidden inside `srcDir(target.files(...))` never reaches it. Mirror
+                    // the same late decision here: only the compilations that can actually see the
+                    // step definitions make their lint tasks depend on the generators they read.
+                    target.plugins.withId(ANDROID_KMP_PLUGIN_ID) {
+                        target.wireLintTasksToGeneratedSources(
+                            compilationTaskSuffix =
+                                "${kotlinTarget.name.capitalise()}${compilation.name.capitalise()}",
+                            canSeeStepDefinitions = sourceSet::canSeeStepDefinitions,
+                            generate = generate,
+                            generatedRegistryTaskName = {
+                                if (target.plugins.hasPlugin(KSP_PLUGIN_ID)) {
+                                    "ksp${kotlinTarget.name.capitalise()}" +
+                                        compilation.name.capitalise()
+                                } else {
+                                    null
+                                }
+                            },
+                        )
+                    }
                 }
             }
 
@@ -182,6 +203,10 @@ public class CucumberKmpPlugin : Plugin<Project> {
 
         /** The property `cucumber-kmp-ksp` emits, which the generated tests call. */
         const val GENERATED_REGISTRY_PROPERTY = "generatedStepRegistry"
+
+        const val ANDROID_KMP_PLUGIN_ID = "com.android.kotlin.multiplatform.library"
+
+        const val KSP_PLUGIN_ID = "com.google.devtools.ksp"
     }
 }
 
@@ -208,6 +233,29 @@ internal const val SHARED_TEST_SOURCE_SET: String = "commonTest"
  */
 internal fun KotlinSourceSet.canSeeStepDefinitions(): Boolean =
     SHARED_TEST_SOURCE_SET in closureOf(this) { it.dependsOn }.map { it.name }
+
+internal fun String.isLintTaskFor(compilationTaskSuffix: String): Boolean =
+    compilationTaskSuffix in this && contains("Lint", ignoreCase = true)
+
+internal fun Project.wireLintTasksToGeneratedSources(
+    compilationTaskSuffix: String,
+    canSeeStepDefinitions: () -> Boolean,
+    generate: org.gradle.api.tasks.TaskProvider<*>,
+    generatedRegistryTaskName: () -> String?,
+) {
+    tasks.matching { it.name.isLintTaskFor(compilationTaskSuffix) }
+        .configureEach { lintTask ->
+            lintTask.dependsOn(
+                Callable {
+                    if (!canSeeStepDefinitions()) return@Callable emptyList<Any>()
+                    buildList {
+                        add(generate)
+                        generatedRegistryTaskName()?.let(::add)
+                    }
+                },
+            )
+        }
+}
 
 /** Gradle's configuration names are camel-cased from target and compilation names. */
 private fun String.capitalise(): String = replaceFirstChar { it.uppercaseChar() }
