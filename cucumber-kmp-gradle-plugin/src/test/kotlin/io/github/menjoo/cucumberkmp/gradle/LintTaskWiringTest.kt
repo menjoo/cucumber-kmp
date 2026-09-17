@@ -13,6 +13,7 @@ class LintTaskWiringTest {
         assertEquals(true, "lintAnalyzeAndroidHostTest".isLintTaskFor("AndroidHostTest"))
         assertEquals(false, "kspAndroidHostTest".isLintTaskFor("AndroidHostTest"))
         assertEquals(false, "lintAnalyzeAndroidDeviceTest".isLintTaskFor("AndroidHostTest"))
+        assertEquals(false, "cleanupAndroidHostTestLintOutputs".isLintTaskFor("AndroidHostTest"))
     }
 
     @Test

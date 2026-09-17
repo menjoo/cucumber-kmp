@@ -235,7 +235,7 @@ internal fun KotlinSourceSet.canSeeStepDefinitions(): Boolean =
     SHARED_TEST_SOURCE_SET in closureOf(this) { it.dependsOn }.map { it.name }
 
 internal fun String.isLintTaskFor(compilationTaskSuffix: String): Boolean =
-    contains(compilationTaskSuffix, ignoreCase = true) && contains("Lint", ignoreCase = true)
+    this == "generate${compilationTaskSuffix}LintModel" || this == "lintAnalyze$compilationTaskSuffix"
 
 internal fun Project.wireLintTasksToGeneratedSources(
     compilationTaskSuffix: String,
