@@ -8,6 +8,12 @@ import kotlin.test.assertEquals
 class LintTaskWiringTest {
 
     @Test
+    fun `derives Android host test task names from target and compilation names`() {
+        assertEquals("AndroidHostTest", compilationTaskSuffix("android", "hostTest"))
+        assertEquals("kspAndroidHostTest", kspTaskName("android", "hostTest"))
+    }
+
+    @Test
     fun `matches Android lint tasks for a compilation`() {
         assertEquals(true, "generateAndroidHostTestLintModel".isLintTaskFor("AndroidHostTest"))
         assertEquals(true, "generateAndroidHostTestLintVitalModel".isLintTaskFor("AndroidHostTest"))

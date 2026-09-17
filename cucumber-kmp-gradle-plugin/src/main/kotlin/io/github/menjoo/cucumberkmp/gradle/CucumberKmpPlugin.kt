@@ -161,13 +161,12 @@ public class CucumberKmpPlugin : Plugin<Project> {
                     target.plugins.withId(ANDROID_KMP_PLUGIN_ID) {
                         target.wireLintTasksToGeneratedSources(
                             compilationTaskSuffix =
-                                "${kotlinTarget.name.capitalise()}${compilation.name.capitalise()}",
+                                compilationTaskSuffix(kotlinTarget.name, compilation.name),
                             canSeeStepDefinitions = sourceSet::canSeeStepDefinitions,
                             generate = generate,
                             generatedRegistryTaskName = {
                                 if (target.plugins.hasPlugin(KSP_PLUGIN_ID)) {
-                                    "ksp${kotlinTarget.name.capitalise()}" +
-                                        compilation.name.capitalise()
+                                    kspTaskName(kotlinTarget.name, compilation.name)
                                 } else {
                                     null
                                 }
@@ -234,6 +233,12 @@ internal const val SHARED_TEST_SOURCE_SET: String = "commonTest"
 internal fun KotlinSourceSet.canSeeStepDefinitions(): Boolean =
     SHARED_TEST_SOURCE_SET in closureOf(this) { it.dependsOn }.map { it.name }
 
+internal fun compilationTaskSuffix(targetName: String, compilationName: String): String =
+    "${targetName.capitalise()}${compilationName.capitalise()}"
+
+internal fun kspTaskName(targetName: String, compilationName: String): String =
+    "ksp${compilationTaskSuffix(targetName, compilationName)}"
+
 internal fun String.isLintTaskFor(compilationTaskSuffix: String): Boolean = when {
     startsWith("generate") && endsWith("Model") ->
         removePrefix("generate").removeSuffix("Model") in setOf(
@@ -242,8 +247,8 @@ internal fun String.isLintTaskFor(compilationTaskSuffix: String): Boolean = when
         )
     startsWith("update") && endsWith("LintBaseline") ->
         removePrefix("update").removeSuffix("LintBaseline") == compilationTaskSuffix
-    startsWith("lint") ->
-        removePrefix("lint").endsWith(compilationTaskSuffix)
+    this == "lintAnalyze$compilationTaskSuffix" || this == "lintVitalAnalyze$compilationTaskSuffix" ->
+        true
     else -> false
 }
 
