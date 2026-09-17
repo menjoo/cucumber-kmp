@@ -239,18 +239,15 @@ internal fun compilationTaskSuffix(targetName: String, compilationName: String):
 internal fun kspTaskName(targetName: String, compilationName: String): String =
     "ksp${compilationTaskSuffix(targetName, compilationName)}"
 
-internal fun String.isLintTaskFor(compilationTaskSuffix: String): Boolean = when {
-    startsWith("generate") && endsWith("Model") ->
-        removePrefix("generate").removeSuffix("Model") in setOf(
-            "${compilationTaskSuffix}Lint",
-            "${compilationTaskSuffix}LintVital",
-        )
-    startsWith("update") && endsWith("LintBaseline") ->
-        removePrefix("update").removeSuffix("LintBaseline") == compilationTaskSuffix
-    this == "lintAnalyze$compilationTaskSuffix" || this == "lintVitalAnalyze$compilationTaskSuffix" ->
-        true
-    else -> false
-}
+internal fun String.isLintTaskFor(compilationTaskSuffix: String): Boolean =
+    matches(
+        Regex(
+            "^(generate${Regex.escape(compilationTaskSuffix)}" +
+                "Lint(?:[A-Z][A-Za-z0-9]*)?Model|" +
+                "update${Regex.escape(compilationTaskSuffix)}LintBaseline|" +
+                "lint(?:[A-Z][A-Za-z0-9]*)${Regex.escape(compilationTaskSuffix)})$",
+        ),
+    )
 
 internal fun Project.wireLintTasksToGeneratedSources(
     compilationTaskSuffix: String,
