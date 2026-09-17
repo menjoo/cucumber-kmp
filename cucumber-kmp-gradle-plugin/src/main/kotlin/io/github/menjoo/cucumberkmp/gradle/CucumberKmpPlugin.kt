@@ -236,10 +236,10 @@ internal fun KotlinSourceSet.canSeeStepDefinitions(): Boolean =
 
 internal fun String.isLintTaskFor(compilationTaskSuffix: String): Boolean = when {
     startsWith("generate") && endsWith("Model") ->
-        removePrefix("generate").removeSuffix("Model").let { generated ->
-            generated.startsWith(compilationTaskSuffix) &&
-                generated.removePrefix(compilationTaskSuffix).startsWith("Lint")
-        }
+        removePrefix("generate").removeSuffix("Model") in setOf(
+            "${compilationTaskSuffix}Lint",
+            "${compilationTaskSuffix}LintVital",
+        )
     startsWith("update") && endsWith("LintBaseline") ->
         removePrefix("update").removeSuffix("LintBaseline") == compilationTaskSuffix
     startsWith("lint") ->

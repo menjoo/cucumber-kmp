@@ -87,4 +87,23 @@ class LintTaskWiringTest {
             lintTask.get().taskDependencies.getDependencies(lintTask.get()).map { it.name }.toSet(),
         )
     }
+
+    @Test
+    fun `still wires generate when KSP is not applied`() {
+        val project = ProjectBuilder.builder().build()
+        val generate = project.tasks.register("generateCucumberTests")
+        val lintTask = project.tasks.register("lintAnalyzeAndroidHostTest", DefaultTask::class.java)
+
+        project.wireLintTasksToGeneratedSources(
+            compilationTaskSuffix = "AndroidHostTest",
+            canSeeStepDefinitions = { true },
+            generate = generate,
+            generatedRegistryTaskName = { null },
+        )
+
+        assertEquals(
+            setOf("generateCucumberTests"),
+            lintTask.get().taskDependencies.getDependencies(lintTask.get()).map { it.name }.toSet(),
+        )
+    }
 }
