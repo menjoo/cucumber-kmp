@@ -2,6 +2,7 @@ package io.github.menjoo.cucumberkmp.gradle
 
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.provider.Property
 import org.gradle.api.file.DirectoryProperty
 import com.google.devtools.ksp.gradle.KspExtension
@@ -153,6 +154,22 @@ public class CucumberKmpPlugin : Plugin<Project> {
                             },
                         ),
                     )
+
+                    // AGP resolves source sets to plain directories for its lint model, so the task
+                    // provider hidden inside `srcDir(target.files(...))` never reaches it. Mirror
+                    // the same late decision here: only the compilations that can actually see the
+                    // step definitions make their lint tasks depend on the generators they read.
+                    target.plugins.withId(ANDROID_KMP_PLUGIN_ID) {
+                        target.wireLintTasksToGeneratedSources(
+                            compilationTaskSuffix =
+                                compilationTaskSuffix(kotlinTarget.name, compilation.name),
+                            canSeeStepDefinitions = sourceSet::canSeeStepDefinitions,
+                            generate = generate,
+                            generatedRegistryTask = {
+                                target.tasks.findByName(kspTaskName(kotlinTarget.name, compilation.name))
+                            },
+                        )
+                    }
                 }
             }
 
@@ -182,6 +199,9 @@ public class CucumberKmpPlugin : Plugin<Project> {
 
         /** The property `cucumber-kmp-ksp` emits, which the generated tests call. */
         const val GENERATED_REGISTRY_PROPERTY = "generatedStepRegistry"
+
+        const val ANDROID_KMP_PLUGIN_ID = "com.android.kotlin.multiplatform.library"
+
     }
 }
 
@@ -208,6 +228,46 @@ internal const val SHARED_TEST_SOURCE_SET: String = "commonTest"
  */
 internal fun KotlinSourceSet.canSeeStepDefinitions(): Boolean =
     SHARED_TEST_SOURCE_SET in closureOf(this) { it.dependsOn }.map { it.name }
+
+internal fun compilationTaskSuffix(targetName: String, compilationName: String): String =
+    "${targetName.capitalise()}${compilationName.capitalise()}"
+
+internal fun kspTaskName(targetName: String, compilationName: String): String =
+    "ksp${compilationTaskSuffix(targetName, compilationName)}"
+
+internal fun String.isLintTaskFor(compilationTaskSuffix: String): Boolean = when {
+    this in setOf(
+        "generate${compilationTaskSuffix}LintModel",
+        "generate${compilationTaskSuffix}LintVitalModel",
+        "update${compilationTaskSuffix}LintBaseline",
+    ) -> true
+    else -> matches(
+        Regex(
+            "^lint(?:VitalAnalyze|Analyze)?${Regex.escape(compilationTaskSuffix)}" +
+                "(?:[A-Z][A-Za-z0-9]*)?$",
+        ),
+    )
+}
+
+internal fun Project.wireLintTasksToGeneratedSources(
+    compilationTaskSuffix: String,
+    canSeeStepDefinitions: () -> Boolean,
+    generate: org.gradle.api.tasks.TaskProvider<*>,
+    generatedRegistryTask: () -> Task?,
+) {
+    tasks.matching { it.name.isLintTaskFor(compilationTaskSuffix) }
+        .configureEach { lintTask ->
+            lintTask.dependsOn(
+                Callable {
+                    if (!canSeeStepDefinitions()) return@Callable emptyList<Any>()
+                    buildList {
+                        add(generate)
+                        generatedRegistryTask()?.let(::add)
+                    }
+                },
+            )
+        }
+}
 
 /** Gradle's configuration names are camel-cased from target and compilation names. */
 private fun String.capitalise(): String = replaceFirstChar { it.uppercaseChar() }
