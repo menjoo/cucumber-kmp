@@ -240,6 +240,7 @@ internal fun String.isLintTaskFor(compilationTaskSuffix: String): Boolean =
         "generate${compilationTaskSuffix}LintModel",
         "generate${compilationTaskSuffix}LintVitalModel",
         "update${compilationTaskSuffix}LintBaseline",
+        "lint$compilationTaskSuffix",
         "lintAnalyze$compilationTaskSuffix",
         "lintVitalAnalyze$compilationTaskSuffix",
     )

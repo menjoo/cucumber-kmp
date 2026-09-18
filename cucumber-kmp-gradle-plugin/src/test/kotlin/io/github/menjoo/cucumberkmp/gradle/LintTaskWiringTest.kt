@@ -17,6 +17,7 @@ class LintTaskWiringTest {
     fun `matches Android lint tasks for a compilation`() {
         assertEquals(true, "generateAndroidHostTestLintModel".isLintTaskFor("AndroidHostTest"))
         assertEquals(true, "generateAndroidHostTestLintVitalModel".isLintTaskFor("AndroidHostTest"))
+        assertEquals(true, "lintAndroidHostTest".isLintTaskFor("AndroidHostTest"))
         assertEquals(true, "lintAnalyzeAndroidHostTest".isLintTaskFor("AndroidHostTest"))
         assertEquals(true, "lintVitalAnalyzeAndroidHostTest".isLintTaskFor("AndroidHostTest"))
         assertEquals(true, "updateAndroidHostTestLintBaseline".isLintTaskFor("AndroidHostTest"))
@@ -34,6 +35,7 @@ class LintTaskWiringTest {
         val lintModel = project.tasks.register("generateAndroidHostTestLintModel", DefaultTask::class.java)
         val lintVitalModel =
             project.tasks.register("generateAndroidHostTestLintVitalModel", DefaultTask::class.java)
+        val lint = project.tasks.register("lintAndroidHostTest", DefaultTask::class.java)
         val lintAnalyze = project.tasks.register("lintAnalyzeAndroidHostTest", DefaultTask::class.java)
         val lintVital = project.tasks.register("lintVitalAnalyzeAndroidHostTest", DefaultTask::class.java)
         val lintBaseline = project.tasks.register("updateAndroidHostTestLintBaseline", DefaultTask::class.java)
@@ -56,6 +58,10 @@ class LintTaskWiringTest {
                 .getDependencies(lintVitalModel.get())
                 .map { it.name }
                 .toSet(),
+        )
+        assertEquals(
+            setOf("generateCucumberTests", "kspAndroidHostTest"),
+            lint.get().taskDependencies.getDependencies(lint.get()).map { it.name }.toSet(),
         )
         assertEquals(
             setOf("generateCucumberTests", "kspAndroidHostTest"),
