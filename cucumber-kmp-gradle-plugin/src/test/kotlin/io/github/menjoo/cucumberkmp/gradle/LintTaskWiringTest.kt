@@ -18,8 +18,11 @@ class LintTaskWiringTest {
         assertEquals(true, "generateAndroidHostTestLintModel".isLintTaskFor("AndroidHostTest"))
         assertEquals(true, "generateAndroidHostTestLintVitalModel".isLintTaskFor("AndroidHostTest"))
         assertEquals(true, "lintAndroidHostTest".isLintTaskFor("AndroidHostTest"))
+        assertEquals(true, "lintAndroidHostTestDebug".isLintTaskFor("AndroidHostTest"))
         assertEquals(true, "lintAnalyzeAndroidHostTest".isLintTaskFor("AndroidHostTest"))
+        assertEquals(true, "lintAnalyzeAndroidHostTestRelease".isLintTaskFor("AndroidHostTest"))
         assertEquals(true, "lintVitalAnalyzeAndroidHostTest".isLintTaskFor("AndroidHostTest"))
+        assertEquals(true, "lintVitalAnalyzeAndroidHostTestDebug".isLintTaskFor("AndroidHostTest"))
         assertEquals(true, "updateAndroidHostTestLintBaseline".isLintTaskFor("AndroidHostTest"))
         assertEquals(false, "kspAndroidHostTest".isLintTaskFor("AndroidHostTest"))
         assertEquals(false, "lintFixAndroidHostTest".isLintTaskFor("AndroidHostTest"))
@@ -36,8 +39,13 @@ class LintTaskWiringTest {
         val lintVitalModel =
             project.tasks.register("generateAndroidHostTestLintVitalModel", DefaultTask::class.java)
         val lint = project.tasks.register("lintAndroidHostTest", DefaultTask::class.java)
+        val lintDebug = project.tasks.register("lintAndroidHostTestDebug", DefaultTask::class.java)
         val lintAnalyze = project.tasks.register("lintAnalyzeAndroidHostTest", DefaultTask::class.java)
+        val lintAnalyzeRelease =
+            project.tasks.register("lintAnalyzeAndroidHostTestRelease", DefaultTask::class.java)
         val lintVital = project.tasks.register("lintVitalAnalyzeAndroidHostTest", DefaultTask::class.java)
+        val lintVitalDebug =
+            project.tasks.register("lintVitalAnalyzeAndroidHostTestDebug", DefaultTask::class.java)
         val lintBaseline = project.tasks.register("updateAndroidHostTestLintBaseline", DefaultTask::class.java)
         val otherLint = project.tasks.register("lintAnalyzeAndroidDeviceTest", DefaultTask::class.java)
 
@@ -65,11 +73,26 @@ class LintTaskWiringTest {
         )
         assertEquals(
             setOf("generateCucumberTests", "kspAndroidHostTest"),
+            lintDebug.get().taskDependencies.getDependencies(lintDebug.get()).map { it.name }.toSet(),
+        )
+        assertEquals(
+            setOf("generateCucumberTests", "kspAndroidHostTest"),
             lintAnalyze.get().taskDependencies.getDependencies(lintAnalyze.get()).map { it.name }.toSet(),
         )
         assertEquals(
             setOf("generateCucumberTests", "kspAndroidHostTest"),
+            lintAnalyzeRelease.get().taskDependencies
+                .getDependencies(lintAnalyzeRelease.get())
+                .map { it.name }
+                .toSet(),
+        )
+        assertEquals(
+            setOf("generateCucumberTests", "kspAndroidHostTest"),
             lintVital.get().taskDependencies.getDependencies(lintVital.get()).map { it.name }.toSet(),
+        )
+        assertEquals(
+            setOf("generateCucumberTests", "kspAndroidHostTest"),
+            lintVitalDebug.get().taskDependencies.getDependencies(lintVitalDebug.get()).map { it.name }.toSet(),
         )
         assertEquals(
             setOf("generateCucumberTests", "kspAndroidHostTest"),
