@@ -2,6 +2,7 @@ package io.github.menjoo.cucumberkmp.gradle
 
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.provider.Property
 import org.gradle.api.file.DirectoryProperty
 import com.google.devtools.ksp.gradle.KspExtension
@@ -247,7 +248,7 @@ internal fun Project.wireLintTasksToGeneratedSources(
     compilationTaskSuffix: String,
     canSeeStepDefinitions: () -> Boolean,
     generate: org.gradle.api.tasks.TaskProvider<*>,
-    generatedRegistryTask: () -> Any?,
+    generatedRegistryTask: () -> Task?,
 ) {
     tasks.matching { it.name.isLintTaskFor(compilationTaskSuffix) }
         .configureEach { lintTask ->
