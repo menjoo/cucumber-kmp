@@ -142,6 +142,44 @@ The build does the rest: KSP turns the annotations into a static step registry, 
 plugin turns each scenario into a `@Test`. Adding a row to that `Examples` table adds a test — on
 every target — and nothing else changes.
 
+The generated test source is ordinary Kotlin. For the feature above, the plugin writes an abridged
+class like this into `build/generated/cucumber/kotlin`:
+
+```kotlin
+package com.example.cucumber
+
+public class CalculatorFeatureTest {
+    /** a 20% discount on 100 */
+    @Test
+    public fun a20DiscountOn100(): TestResult = runTest {
+        RUNNER.runOrThrow(PICKLE_0)
+    }
+
+    /** a 10% discount on 250 */
+    @Test
+    public fun a10DiscountOn250(): TestResult = runTest {
+        RUNNER.runOrThrow(PICKLE_1)
+    }
+
+    private companion object {
+        private val RUNNER = CucumberRunner(::generatedStepRegistry)
+
+        private val PICKLE_0 = Pickle(
+            name = "a 20% discount on 100",
+            steps = listOf(
+                PickleStep(text = "I have entered 100"),
+                PickleStep(text = "I press add"),
+                PickleStep(text = "I apply a discount of 20 percent"),
+                PickleStep(text = "the result should be 80"),
+            ),
+        )
+    }
+}
+```
+
+That is the whole runtime model: one generated test function per scenario, each executing an
+embedded `Pickle` through the shared runner and step registry.
+
 Annotations are optional. The `steps { }` DSL underneath them needs no code generation at all:
 
 ```kotlin
