@@ -173,6 +173,16 @@ public class CalculatorFeatureTest {
                 PickleStep(text = "the result should be 80"),
             ),
         )
+
+        private val PICKLE_1 = Pickle(
+            name = "a 10% discount on 250",
+            steps = listOf(
+                PickleStep(text = "I have entered 250"),
+                PickleStep(text = "I press add"),
+                PickleStep(text = "I apply a discount of 10 percent"),
+                PickleStep(text = "the result should be 225"),
+            ),
+        )
     }
 }
 ```
